@@ -92,7 +92,8 @@ function safeLink(u) {
 // Hämtning: Jina för goteborg.se (JS-renderad), direkt annars
 // ============================================================
 async function fetchPage(url) {
-  const useJina = /goteborg\.se/.test(url);
+  const JS_RENDERED = /goteborg\.se|partille\.se|kungalv\.se/.test(url);
+  const useJina = JS_RENDERED && !!ENV.JINA_API_KEY;
   const target = useJina && ENV.JINA_API_KEY
     ? "https://r.jina.ai/" + url
     : url;
@@ -233,41 +234,67 @@ function parseGbg(html) {
 // ============================================================
 // Tolkare: Musikens Hus (WordPress-kalender)
 // ============================================================
+const MH_MONTHS = { "jan":0,"feb":1,"mar":2,"apr":3,"maj":4,"jun":5,"jul":6,"aug":7,"sep":8,"okt":9,"nov":10,"dec":11 };
+const MH_MONTH_SV = SV_MONTHS;
+// Musikens Hus: "#### 01" / "Okt/Tor" / scen / "## Titel" / beskrivning / pris
 function parseMH(html) {
   const anchors = extractAnchors(html);
-  const md = htmlToMd(html);
-  const lines = md.split(/\r?\n/).map((l) => l.trim());
+  const lines = htmlToMd(html).split(/\r?\n/).map((l) => l.trim().replace(/^[-–•]\s+/, ""));
   const items = [];
-  const dateRe = /^(\d{1,2})\s+(\w+)$/;
-  const timeRe = /^(\d{1,2}[:.]\d{2})\s*[-–—]\s*(\d{1,2}[:.]\d{2})$/;
+  const dateHeadRe = /^#{2,6}\s+(\d{1,2})$/;
+  const monthDayRe = /^([a-zåäö]{3})\/([a-zåäö]{2,3})$/i;
+  const cur = new Date();
   let i = 0;
   while (i < lines.length) {
-    const dm = (lines[i] || "").match(dateRe);
-    if (dm && SV_MONTHS.includes(dm[2].toLowerCase())) {
-      let j = i + 1;
-      let time = "", title = "", desc = [];
-      while (j < lines.length && !(lines[j] || "").match(dateRe) && j < i + 12) {
-        const tm = (lines[j] || "").match(timeRe);
-        if (tm && !time) time = tm[1].replace(".", ":") + "–" + tm[2].replace(".", ":");
-        else if (!title && lines[j] && lines[j].length > 3 && !/^\d/.test(lines[j])) title = lines[j].replace(/^#+\s*/, "");
-        else if (title && lines[j] && lines[j].length > 10) desc.push(lines[j]);
+    const dm = lines[i] && lines[i].match(dateHeadRe);
+    if (dm) {
+      let day = +dm[1], month = -1, scen = "", j = i + 1;
+      while (j < lines.length && !lines[j]) j++;
+      const md = lines[j] && lines[j].match(monthDayRe);
+      if (md) {
+        month = MH_MONTHS[md[1].toLowerCase()] !== undefined ? MH_MONTHS[md[1].toLowerCase()] : -1;
         j++;
+        while (j < lines.length && !lines[j]) j++;
+        if (lines[j] && !/^#{2,6}/.test(lines[j])) { scen = lines[j]; j++; }
+        while (j < lines.length && !lines[j]) j++;
+        if (lines[j] && /^#{2,6}\s+/.test(lines[j]) && month >= 0) {
+          const title = lines[j].replace(/^#{2,6}\s+/, "").trim();
+          j++;
+          const desc = [];
+          let price = "";
+          while (j < lines.length && !/^L[aä]s mer/i.test(lines[j] || "") && !dateHeadRe.test(lines[j] || "")) {
+            if (lines[j]) {
+              if (/^(Fri entré|Boka biljett|\d+\s*kr)/i.test(lines[j])) { if (!price) price = lines[j]; }
+              else if (desc.join(" ").length < 400) desc.push(lines[j]);
+            }
+            j++;
+          }
+          if (/^L[aä]s mer/i.test(lines[j] || "")) j++;
+          while (j < lines.length && !lines[j]) j++;
+          if (j < lines.length && /^(Fri entré|Boka biljett|\d+\s*kr)/i.test(lines[j])) { if (!price) price = lines[j]; j++; }
+          const descAll = desc.join(" ");
+          let timeStr = "";
+          const kt = descAll.match(/(?:kl\.?\s*|klockan\s*|[Oo]ppet:\s*|Från\s+|Start\s+)(\d{1,2}[:.]\d{2})(?:\s*(?:[-–—]|till)\s*(\d{1,2}[:.]\d{2}))?/);
+          if (kt) timeStr = kt[2] ? kt[1].replace(".", ":") + "–" + kt[2].replace(".", ":") : kt[1].replace(".", ":");
+          let year = cur.getFullYear();
+          if (month < cur.getMonth()) year++;
+          const it = {
+            title, venue: "Musikens Hus" + (scen ? ` (${scen})` : ""), source: "musikenshus.se",
+            date: `${day} ${MH_MONTH_SV[month]}`, time: timeStr, start: "", end: "",
+            full: false, recurring: false,
+            desc: desc.join(" ").slice(0, 400),
+            price,
+            iso: `${year}-${String(month + 1).padStart(2, "0")}-${String(day).padStart(2, "0")}`,
+          };
+          it.isoEnd = it.iso;
+          it.category = categorize(it);
+          it.link = findLink(anchors, it.title, "musikenshus.se");
+          items.push(it);
+          i = j; continue;
+        }
       }
-      if (title) {
-        const it = {
-          title, venue: "Musikens Hus", source: "musikenshus.se",
-          date: `${dm[1]} ${dm[2]}`, time, start: "", end: "",
-          full: false, recurring: false,
-          desc: desc.join(" ").slice(0, 300),
-          iso: svDateToISO(`${dm[1]} ${dm[2]}`),
-        };
-        it.isoEnd = it.iso;
-        it.category = categorize(it);
-        it.link = findLink(anchors, it.title, "musikenshus.se");
-        items.push(it);
-      }
-      i = j;
-    } else i++;
+    }
+    i++;
   }
   return items;
 }
@@ -275,50 +302,60 @@ function parseMH(html) {
 // ============================================================
 // Tolkare: House of Possibilitas (dag datum / tid / titel)
 // ============================================================
-const HOP_MONTHS = SV_MONTHS;
-function hopDateToISO(dateStr, fallback) {
-  const m = String(dateStr || "").match(/(\d{1,2})\s+(\w+)/);
-  if (!m) return fallback || null;
+const HOP_MONTHS = ["jan","feb","mar","apr","maj","jun","jul","aug","sep","okt","nov","dec"];
+const HOP_MONTH_SV = SV_MONTHS;
+function hopDateToISO(dateStr) {
+  const m = String(dateStr || "").match(/(\d{1,2})\s+([a-zåäö]{3})/i);
+  if (!m) return null;
   const mi = HOP_MONTHS.indexOf(m[2].toLowerCase());
-  if (mi === -1) return fallback || null;
+  if (mi === -1) return null;
   const now = new Date();
   let year = now.getFullYear();
   if (mi < now.getMonth()) year++;
   return `${year}-${String(mi + 1).padStart(2, "0")}-${String(+m[1]).padStart(2, "0")}`;
 }
+// House of Possibilitas: "fre 2 okt" / "10:00" / "### Titel" / beskrivning
 function parseHoP(html) {
   const anchors = extractAnchors(html);
-  const md = htmlToMd(html);
-  const lines = md.split(/\r?\n/).map((l) => l.trim());
+  const lines = htmlToMd(html).split(/\r?\n/).map((l) => l.trim().replace(/^[-–•]\s+/, ""));
   const items = [];
-  const re = /^(Måndag|Tisdag|Onsdag|Torsdag|Fredag|Lördag|Söndag)\s+(\d{1,2})\s+([a-zåäö]+)$/i;
+  const dateRe = /^(mån|tis|ons|tor|fre|lör|sön)\s+(\d{1,2})\s+([a-zåäö]{3})$/i;
+  const timeRe = /^(\d{1,2}[:.]\d{2})$/;
   let i = 0;
   while (i < lines.length) {
-    const dm = (lines[i] || "").match(re);
+    const dm = lines[i] && lines[i].match(dateRe);
     if (dm) {
-      let j = i + 1, time = "", title = "", desc = [];
-      while (j < lines.length && !re.test(lines[j] || "") && j < i + 15) {
-        const tm = (lines[j] || "").match(/^(\d{1,2}[:.]\d{2})\s*[-–]\s*(\d{1,2}[:.]\d{2})$/);
-        if (tm && !time) time = tm[1].replace(".", ":") + "–" + tm[2].replace(".", ":");
-        else if (!title && lines[j] && lines[j].length > 3 && !/^\d/.test(lines[j]) && !/^(Måndag|Tisdag|Onsdag|Torsdag|Fredag|Lördag|Söndag)/i.test(lines[j])) title = lines[j].replace(/^#+\s*/, "");
-        else if (title && lines[j] && lines[j].length > 10) desc.push(lines[j]);
+      const dateStr = `${dm[2]} ${dm[3]}`;
+      let timeStr = "", j = i + 1;
+      while (j < lines.length && !lines[j]) j++;
+      const tm = lines[j] && lines[j].match(timeRe);
+      if (tm) { timeStr = tm[1].replace(".", ":"); j++; }
+      while (j < lines.length && !lines[j]) j++;
+      if (lines[j] && /^#{2,4}\s+/.test(lines[j])) {
+        const title = lines[j].replace(/^#{2,4}\s+/, "").trim();
         j++;
-      }
-      if (title) {
+        const desc = [];
+        while (j < lines.length && !/^L[aä]s mer/i.test(lines[j] || "") && !dateRe.test(lines[j] || "")) {
+          if (lines[j] && desc.join(" ").length < 400) desc.push(lines[j]);
+          j++;
+        }
+        if (/^L[aä]s mer/i.test(lines[j] || "")) j++;
+        const mi = HOP_MONTHS.indexOf(dm[3].toLowerCase());
         const it = {
           title, venue: "House of Possibilitas", source: "houseofpossibilitas.se",
-          date: `${dm[2]} ${dm[3]}`, time, start: "", end: "",
+          date: `${dm[2]} ${HOP_MONTH_SV[mi !== -1 ? mi : 0]}`, time: timeStr, start: "", end: "",
           full: false, recurring: false,
-          desc: desc.join(" ").slice(0, 300),
-          iso: hopDateToISO(`${dm[2]} ${dm[3]}`),
+          desc: desc.join(" ").slice(0, 400),
+          iso: hopDateToISO(dateStr),
         };
         it.isoEnd = it.iso;
         it.category = categorize(it);
         it.link = findLink(anchors, it.title, "houseofpossibilitas.se");
         items.push(it);
+        i = j; continue;
       }
-      i = j;
-    } else i++;
+    }
+    i++;
   }
   return items;
 }
