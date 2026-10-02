@@ -1,0 +1,267 @@
+<!doctype html>
+<html lang="sv">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Evenemang på kulturhusen i Göteborg med omnejd</title>
+<style>
+  :root { font-family: system-ui, -apple-system, sans-serif; color: #1f2937; background: #f1f5f9; }
+  * { box-sizing: border-box; }
+  body { margin: 0; padding: 20px; }
+  .wrap { max-width: 1000px; margin: 0 auto; }
+  h1 { font-size: 1.4rem; margin: 0 0 4px; }
+  .sub { color: #64748b; font-size: .85rem; margin-bottom: 16px; }
+  .card { background: #fff; border: 1px solid #e2e8f0; border-radius: 10px; padding: 16px; margin-bottom: 14px; }
+  .card h2 { font-size: 1rem; margin: 0 0 8px; }
+  textarea { width: 100%; height: 160px; font: .8rem/1.4 ui-monospace, monospace; padding: 10px; border: 1px solid #cbd5e1; border-radius: 8px; resize: vertical; }
+  .row { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; margin-top: 10px; }
+  button { background: #0f4c81; color: #fff; border: 0; border-radius: 8px; padding: 8px 14px; font-size: .85rem; cursor: pointer; }
+  button.secondary { background: #e2e8f0; color: #1f2937; }
+  button:disabled { opacity: .5; cursor: not-allowed; }
+  input[type=text], select { padding: 7px 10px; border: 1px solid #cbd5e1; border-radius: 8px; font-size: .85rem; }
+  .stats { font-size: .85rem; color: #334155; margin: 0 0 10px; }
+  table { width: 100%; border-collapse: collapse; font-size: .82rem; }
+  th, td { text-align: left; padding: 7px 9px; border-bottom: 1px solid #e2e8f0; vertical-align: top; }
+  th { background: #f8fafc; position: sticky; top: 0; cursor: pointer; white-space: nowrap; }
+  td.title { font-weight: 600; }
+  td.title a { color: #1f2937; text-decoration: none; border-bottom: 1px solid #93c5fd; }
+  td.title a:hover { color: #0f4c81; border-bottom-color: #0f4c81; }
+  a.ext::after { content: " ↗"; font-size: .7em; color: #93c5fd; text-decoration: none; }
+  .badge { display: inline-block; font-size: .68rem; padding: 1px 7px; border-radius: 99px; margin-left: 6px; font-weight: 500; }
+  .badge.full { background: #fee2e2; color: #b91c1c; }
+  .badge.rep { background: #dbeafe; color: #1d4ed8; }
+  .venue { color: #0f4c81; white-space: nowrap; }
+  .msg { font-size: .8rem; margin-top: 8px; color: #166534; }
+  .msg.err { color: #b91c1c; }
+  .hint { font-size: .78rem; color: #64748b; margin-top: 8px; line-height: 1.5; }
+  .tblwrap { max-height: 55vh; overflow: auto; border: 1px solid #e2e8f0; border-radius: 8px; }
+  details summary { cursor: pointer; font-size: .8rem; color: #0f4c81; }
+  .srcrow { display: flex; gap: 8px; padding: 5px 0; border-bottom: 1px solid #f1f5f9; font-size: .82rem; align-items: baseline; }
+  .srcrow:last-child { border-bottom: 0; }
+  .srcname { font-weight: 600; min-width: 220px; }
+  .srcstat.ok { color: #166534; }
+  .srcstat.err { color: #b91c1c; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>Evenemang på kulturhusen i Göteborg med omnejd</h1>
+  <div class="sub">Hämtar och strukturerar aktiviteter från goteborg.se:s programsida för kulturhusen (Bergsjön, Kåken, Blå Stället, Frölunda, Gårdsten m.fl.).</div>
+
+  <div class="card">
+    <h2>Källstatus</h2>
+    <div id="srcStatus" class="hint">Ingen data inläst ännu.</div>
+    <div class="row" style="margin-top:10px">
+      <button id="refreshBtn">Uppdatera nu</button>
+      <span id="lastUpdated" class="hint"></span>
+    </div>
+  </div>
+
+  <div class="card">
+    <h2>Filtrera &amp; exportera</h2>
+    <div class="row" style="margin: 0 0 10px;">
+      <input type="text" id="q" placeholder="Sök titel..." style="flex:1; min-width:180px" />
+      <select id="venueFilter"><option value="">Alla kulturhus</option></select>
+      <select id="sourceFilter">
+        <option value="">Alla källor</option>
+        <option value="goteborg.se">goteborg.se (kulturhusen)</option>
+        <option value="houseofpossibilitas.se">House of Possibilitas</option>
+        <option value="musikenshus.se">Musikens Hus</option>
+        <option value="kulturhusetmollan.se">Kulturhuset Möllan (Mölndal)</option>
+        <option value="kungalv.se">Mimers Kulturhus (Kungälv)</option>
+        <option value="partille.se">Partille Kulturum</option>
+        <option value="bibliotek.kungsbacka.se">Biblioteken i Kungsbacka</option>
+      </select>
+      <select id="categoryFilter">
+        <option value="">Alla kategorier</option>
+        <option value="musik">Musik</option>
+        <option value="dans">Dans</option>
+        <option value="utstallning">Utställning</option>
+        <option value="film">Film</option>
+        <option value="forelasning">Föreläsning/Samtal</option>
+        <option value="workshop">Workshop/Kurs</option>
+        <option value="teater">Teater/Föreställning</option>
+        <option value="barnfamilj">Barn &amp; familj</option>
+        <option value="schack">Schack/Spel</option>
+        <option value="ovrigt">Övrigt</option>
+      </select>
+      <select id="statusFilter">
+        <option value="">Alla statusar</option>
+        <option value="full">Fullbokade</option>
+        <option value="open">Med platser kvar</option>
+      </select>
+      <button id="csvBtn" class="secondary" disabled>Exportera CSV</button>
+      <button id="jsonBtn" class="secondary" disabled>Exportera JSON</button>
+      <button id="copyBtn" class="secondary" disabled>Kopiera JSON</button>
+    </div>
+    <div id="stats" class="stats"></div>
+    <div class="tblwrap">
+      <table id="tbl">
+        <thead>
+          <tr><th data-k="title">Titel ▲</th><th data-k="venue">Kulturhus</th><th data-k="date">Datum</th><th data-k="time">Tid</th></tr>
+        </thead>
+        <tbody></tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<script>
+// --- Länkhantering: söklänkar per källa ---
+function findLink(title, source) {
+  if (source === "musikenshus.se") return "https://www.musikenshus.se/?s=" + encodeURIComponent(title);
+  if (source === "houseofpossibilitas.se") return "https://houseofpossibilitas.se/?s=" + encodeURIComponent(title);
+  if (source === "kulturhusetmollan.se") return "https://kulturhusetmollan.se/?s=" + encodeURIComponent(title);
+  if (source === "kungalv.se") return "https://www.kungalv.se/sok?q=" + encodeURIComponent(title);
+  if (source === "partille.se") return "https://www.partille.se/uppleva--gora/evenemang/";
+  if (source === "bibliotek.kungsbacka.se") return "https://bibliotek.kungsbacka.se/evenemang";
+  return "https://www.google.com/search?q=" + encodeURIComponent('"' + title + '" site:goteborg.se');
+}
+
+let DATA = [], view = [], sortKey = "date", sortAsc = true;
+
+const SOURCE_LABELS = {
+  "goteborg.se": "goteborg.se (kulturhusen)",
+  "musikenshus.se": "Musikens Hus",
+  "houseofpossibilitas.se": "House of Possibilitas",
+  "kulturhusetmollan.se": "Kulturhuset Möllan (Mölndal)",
+  "kungalv.se": "Mimers Kulturhus (Kungälv)",
+  "partille.se": "Partille Kulturum",
+  "bibliotek.kungsbacka.se": "Biblioteken i Kungsbacka"
+};
+
+function escapeHtml(s) {
+  return String(s || "").replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+}
+
+function setSrcStatus(rows) {
+  document.getElementById("srcStatus").innerHTML = rows.map(([name, stat, cls]) =>
+    `<div class="srcrow"><span class="srcname">${escapeHtml(name)}:</span><span class="srcstat ${cls}">${escapeHtml(stat)}</span></div>`
+  ).join("");
+}
+
+function loadItems(items) {
+  DATA = items;
+  const venues = [...new Set(items.map(x => x.venue))].sort();
+  const vf = document.getElementById("venueFilter");
+  const cur = vf.value;
+  vf.innerHTML = '<option value="">Alla kulturhus</option>' + venues.map(v => `<option>${escapeHtml(v)}</option>`).join("");
+  vf.value = venues.includes(cur) ? cur : "";
+  ["csvBtn","jsonBtn","copyBtn"].forEach(id => document.getElementById(id).disabled = items.length === 0);
+  render();
+}
+
+function render() {
+  const q = document.getElementById("q").value.toLowerCase().trim();
+  const v = document.getElementById("venueFilter").value;
+  const c = document.getElementById("categoryFilter").value;
+  const src = document.getElementById("sourceFilter").value;
+  const s = document.getElementById("statusFilter").value;
+  const today = new Date().toISOString().slice(0, 10);
+  view = DATA.filter(x =>
+    (!x.isoEnd || x.isoEnd >= today) &&
+    (!q || x.title.toLowerCase().includes(q) || x.venue.toLowerCase().includes(q) || (x.desc || "").toLowerCase().includes(q)) &&
+    (!v || x.venue === v) &&
+    (!c || x.category === c) &&
+    (!src || x.source === src) &&
+    (s === "" || (s === "full" ? x.full : !x.full))
+  );
+  view.sort((a, b) => {
+    let r;
+    if (sortKey === "title" || sortKey === "venue") r = (a[sortKey] || "").localeCompare(b[sortKey] || "", "sv");
+    else if (sortKey === "time") r = (a.time || "99").localeCompare(b.time || "99");
+    else r = (a.iso || "9999") < (b.iso || "9999") ? -1 : (a.iso || "9999") > (b.iso || "9999") ? 1 : 0;
+    return sortAsc ? r : -r;
+  });
+  document.getElementById("stats").textContent =
+    `${view.length} av ${DATA.length} aktiviteter`;
+  document.querySelector("#tbl thead tr").innerHTML =
+    `<th data-k="title">Titel ${sortKey==="title"?(sortAsc?"▲":"▼"):""}</th>
+     <th data-k="venue">Kulturhus ${sortKey==="venue"?(sortAsc?"▲":"▼"):""}</th>
+     <th data-k="date">Datum ${sortKey==="date"?(sortAsc?"▲":"▼"):""}</th>
+     <th data-k="time">Tid ${sortKey==="time"?(sortAsc?"▲":"▼"):""}</th>`;
+  document.querySelector("#tbl tbody").innerHTML = view.map(x => {
+    const badges = (x.full ? '<span class="badge full">Fullbokad</span>' : "") +
+                  (x.recurring ? '<span class="badge rep">Återkommande</span>' : "");
+    const date = x.date || (x.start && x.end ? `${x.start} – ${x.end}` : x.start || "");
+    const link = (x.link && /^https?:\/\//i.test(x.link)) ? x.link : findLink(x.title, x.source || "goteborg.se");
+    const titleHtml = `<a class="ext" href="${escapeHtml(link)}" target="_blank" rel="noopener">${escapeHtml(x.title)}</a>`;
+    return `<tr><td class="title">${titleHtml}${badges}</td>
+      <td class="venue">${escapeHtml(x.venue)}</td><td>${escapeHtml(date)}</td><td>${escapeHtml(x.time || "")}</td></tr>`;
+  }).join("") || '<tr><td colspan="4" style="color:#94a3b8;text-align:center;padding:24px">Inga träffar</td></tr>';
+}
+
+["q","venueFilter","categoryFilter","sourceFilter","statusFilter"].forEach(id =>
+  document.getElementById(id).addEventListener("input", render));
+document.getElementById("venueFilter").addEventListener("change", render);
+document.getElementById("categoryFilter").addEventListener("change", render);
+document.getElementById("sourceFilter").addEventListener("change", render);
+document.getElementById("tbl").addEventListener("click", e => {
+  const th = e.target.closest("th[data-k]");
+  if (!th) return;
+  const k = th.dataset.k;
+  sortAsc = (sortKey === k) ? !sortAsc : true;
+  sortKey = k; render();
+});
+
+function download(name, content, type) {
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(new Blob([content], { type }));
+  a.download = name; a.click(); URL.revokeObjectURL(a.href);
+}
+function exportRows() {
+  return view.map(x => ({
+    titel: x.title, kulturhus: x.venue, kalla: x.source || "goteborg.se", datum: x.date || "",
+    startdatum: x.start || "", slutdatum: x.end || "", tid: x.time || "",
+    fullbokad: !!x.full, aterkommande: !!x.recurring, iso_datum: x.iso || "", kategori: x.category || "",
+    lank: x.link || "", beskrivning: x.desc || ""
+  }));
+}
+document.getElementById("csvBtn").onclick = () => {
+  const rows = exportRows();
+  if (!rows.length) return;
+  const cols = Object.keys(rows[0]);
+  const csv = [cols.join(",")].concat(rows.map(r =>
+    cols.map(c => `"${String(r[c]).replace(/"/g, '""')}"`).join(","))).join("\n");
+  download("kulturhusprogram.csv", "\uFEFF" + csv, "text/csv;charset=utf-8");
+};
+document.getElementById("jsonBtn").onclick = () =>
+  download("kulturhusprogram.json", JSON.stringify(exportRows(), null, 2), "application/json");
+document.getElementById("copyBtn").onclick = async e => {
+  await navigator.clipboard.writeText(JSON.stringify(exportRows(), null, 2));
+  const b = e.target; b.textContent = "Kopierat!"; setTimeout(() => b.textContent = "Kopiera JSON", 1500);
+};
+
+// Uppdatera-knapp: tvinga fram färsk hämtning
+document.getElementById("refreshBtn").onclick = () => autoUpdate(false, true);
+
+// Hämtar från /api/events på samma domän (Pages Function)
+async function autoUpdate(silent, force) {
+  if (!silent) { document.getElementById("refreshBtn").disabled = true; document.getElementById("refreshBtn").textContent = "Hämtar…"; }
+  try {
+    const res = await fetch("/api/events" + (force ? "?refresh=1" : ""), { headers: { "Accept": "application/json" } });
+    if (!res.ok) throw new Error("HTTP " + res.status);
+    const data = await res.json();
+    if (!data.items || !data.items.length) throw new Error("inga evenemang");
+    loadItems(data.items);
+    const counts = data.counts || {};
+    const rows = Object.entries(SOURCE_LABELS).map(([src, label]) => {
+      const n = counts[src] !== undefined ? counts[src] : data.items.filter(x => x.source === src).length;
+      return [label, n > 0 ? n + " evenemang" : "0 – " + ((data.errors || []).find(e => e.startsWith(src)) || "inga evenemang just nu"), n > 0 ? "ok" : "err"];
+    });
+    setSrcStatus(rows);
+    document.getElementById("lastUpdated").textContent =
+      "Uppdaterad " + (data.fetchedAt ? new Date(data.fetchedAt).toLocaleString("sv-SE") : new Date().toLocaleString("sv-SE")) + (data.cached ? " (cachat)" : "");
+    return true;
+  } catch (e) {
+    if (!silent) setSrcStatus([["Hämtning misslyckades", String(e.message || e) + " – kontrollera att Pages Function är deployad.", "err"]]);
+    return false;
+  } finally {
+    if (!silent) { document.getElementById("refreshBtn").disabled = false; document.getElementById("refreshBtn").textContent = "Uppdatera nu"; }
+  }
+}
+
+(async () => { await autoUpdate(true); })();
+</script>
+</body>
+</html>
