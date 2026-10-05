@@ -40,7 +40,7 @@ const SOURCES = {
 };
 
 // ---------- Modul-global cache (per isolate) ----------
-let CACHE = { ts: 0, data: [] };
+let CACHE = { ts: 0, items: [] };
 let ENV = {};
 
 function setEnv(env) {
@@ -641,7 +641,7 @@ async function fetchAllEvents() {
 // vid upprepade anrop i Pages Functions och är därför borttaget.
 // ============================================================
 async function getEvents(force) {
-  if (!force && CACHE.data.length && Date.now() - CACHE.ts < CACHE_TTL_MS) {
+  if (!force && CACHE.items.length && Date.now() - CACHE.ts < CACHE_TTL_MS) {
     return { ...CACHE, cached: true };
   }
   const fresh = await fetchAllEvents();
@@ -649,7 +649,7 @@ async function getEvents(force) {
     CACHE = { ts: Date.now(), ...fresh };
     return { ...fresh, cached: false };
   }
-  if (CACHE.data.length) return { ...CACHE, cached: true, stale: true };
+  if (CACHE.items.length) return { ...CACHE, cached: true, stale: true };
   return fresh;
 }
 
