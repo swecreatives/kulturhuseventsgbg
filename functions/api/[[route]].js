@@ -191,7 +191,7 @@ function parseGbg(html) {
   let i = 0;
   while (i < lines.length) {
     if (/^##\s/.test(lines[i] || "")) {
-      let title = lines[i].replace(/^##\s+/, "").trim();
+      let title = lines[i].replace(/^##\s+/, "").replace(/\[([^\]]*)\]\([^)]*\)/g, "$1").trim();
       let venue = "";
       const known = ["Kulturhuset Bergsjön","Kulturhuset Kåken","Kulturhuset Blå Stället","Frölunda Kulturhus","Kulturrummet Gårdsten","Kulturhuset Backa","Kulturhuset Angered","Kulturrummet Bergsjön"];
       for (const k of known) {
@@ -636,48 +636,20 @@ async function fetchAllEvents() {
 }
 
 // ============================================================
-// Cache: modul-global (per isolate) + Cache API (överlever isolate-återstarter)
+// Cache (per isolate)
+// Obs: Cache API (caches.default) provades men orsakar 500-error
+// vid upprepade anrop i Pages Functions och är därför borttaget.
 // ============================================================
-const EDGE_CACHE_KEY = new Request("https://kulturhus-cache.internal/api/events");
-
-async function readEdgeCache() {
-  try {
-    const c = caches.default;
-    const hit = await c.match(EDGE_CACHE_KEY);
-    if (hit) return await hit.json();
-  } catch (e) { /* Cache API ej tillgänglig -> hoppa över */ }
-  return null;
-}
-
-async function writeEdgeCache(data) {
-  try {
-    const c = caches.default;
-    await c.put(EDGE_CACHE_KEY, new Response(JSON.stringify(data), {
-      headers: { "content-type": "application/json", "cache-control": `max-age=${Math.floor(CACHE_TTL_MS / 1000)}` },
-    }));
-  } catch (e) { /* ignorera */ }
-}
-
 async function getEvents(force) {
-  if (!force) {
-    if (CACHE.data.length && Date.now() - CACHE.ts < CACHE_TTL_MS) {
-      return { ...CACHE, cached: true };
-    }
-    const edge = await readEdgeCache();
-    if (edge && edge.items && edge.items.length) {
-      CACHE = { ts: Date.now(), ...edge };
-      return { ...edge, cached: true };
-    }
+  if (!force && CACHE.data.length && Date.now() - CACHE.ts < CACHE_TTL_MS) {
+    return { ...CACHE, cached: true };
   }
   const fresh = await fetchAllEvents();
   if (fresh.items.length > 0) {
     CACHE = { ts: Date.now(), ...fresh };
-    await writeEdgeCache(fresh);
     return { ...fresh, cached: false };
   }
   if (CACHE.data.length) return { ...CACHE, cached: true, stale: true };
-  const edge = await readEdgeCache();
-  if (edge && edge.items && edge.items.length) return { ...edge, cached: true, stale: true };
   return fresh;
 }
 
