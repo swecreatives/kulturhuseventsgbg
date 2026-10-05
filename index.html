@@ -243,8 +243,15 @@ async function autoUpdateCachedAware() {
   return ok && window.__lastResponseCached;
 }
 
+// Visa laddningsindikering i statusraden vid sidladdning
+function setLoading(msg) {
+  const el = document.getElementById("lastUpdated");
+  if (el) el.textContent = msg;
+}
+
 async function autoUpdate(silent, force) {
   if (!silent) { document.getElementById("refreshBtn").disabled = true; document.getElementById("refreshBtn").textContent = "Hämtar…"; }
+  else setLoading("Hämtar evenemang… (kan ta någon minut första gången)");
   try {
     const res = await fetch("/api/events" + (force ? "?refresh=1&_=" + Date.now() : "?_=" + Date.now()), { headers: { "Accept": "application/json" }, cache: "no-store" });
     if (!res.ok) throw new Error("HTTP " + res.status);
@@ -263,7 +270,8 @@ async function autoUpdate(silent, force) {
       "Uppdaterad " + (data.fetchedAt ? new Date(data.fetchedAt).toLocaleString("sv-SE") : new Date().toLocaleString("sv-SE")) + (data.cached ? " (cachat)" : "");
     return true;
   } catch (e) {
-    if (!silent) setSrcStatus([["Hämtning misslyckades", String(e.message || e) + " – kontrollera att Pages Function är deployad.", "err"]]);
+    setSrcStatus([["Hämtning misslyckades", String(e.message || e) + " – kontrollera att Pages Function är deployad.", "err"]]);
+    setLoading("Hämtning misslyckades: " + String(e.message || e));
     return false;
   } finally {
     if (!silent) { document.getElementById("refreshBtn").disabled = false; document.getElementById("refreshBtn").textContent = "Uppdatera nu"; }
