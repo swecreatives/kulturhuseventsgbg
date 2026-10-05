@@ -516,7 +516,8 @@ async function fetchKungalvEvents() {
 // ============================================================
 // Partille: evenemangskalendern laddas med Vue från ett öppet
 // JSON-API (/_api/eventlistpage/events) med paginering via
-// take/skip. Endast evenemang i framtiden hämtas (from=dagens dato).
+// take/skip. Endast evenemang i framtiden hämtas (from=dagens dato)
+// och endast de med plats på Kulturum ( Location-fältet).
 // ============================================================
 const PARTILLE_VENUE = "Partille Kulturum";
 async function fetchPartilleEvents() {
@@ -543,15 +544,16 @@ async function fetchPartilleEvents() {
     if (all.length >= (page.TotalHits || 0)) break;
     skip += pageSize;
   }
-  const items = all.map((e) => {
+  const items = all
+    .filter((e) => /kulturum/i.test(e.Location || ""))
+    .map((e) => {
     const from = e.EventFromDate ? new Date(e.EventFromDate) : null;
     const to = e.EventToDate ? new Date(e.EventToDate) : null;
     const iso = from && !isNaN(from) ? from.toISOString().slice(0, 10) : null;
     const isoEnd = to && !isNaN(to) ? to.toISOString().slice(0, 10) : iso;
     const timeStr = from && !isNaN(from) ? String(from.getUTCHours()).padStart(2, "0") + ":" + String(from.getUTCMinutes()).padStart(2, "0") : "";
-    const venue = e.Location && /kulturum/i.test(e.Location) ? PARTILLE_VENUE : (e.Location || PARTILLE_VENUE);
     const it = {
-      title: decodeEntities(e.Title), venue, source: "partille.se",
+      title: decodeEntities(e.Title), venue: PARTILLE_VENUE, source: "partille.se",
       date: iso || "", time: timeStr, start: "", end: "",
       full: false, recurring: !!e.HasMultipleDates,
       desc: e.Category ? "Kategori: " + e.Category : "",
