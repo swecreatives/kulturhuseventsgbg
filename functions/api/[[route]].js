@@ -31,7 +31,9 @@ const SOURCES = {
   hop: "https://houseofpossibilitas.se/evenemang/",
   mollan: "https://kulturhusetmollan.se/evenemang/",
   kungalv: "https://www.kungalv.se/kultur--fritid/evenemang-kungalv/",
-  partille: "https://www.partille.se/uppleva--gora/evenemang/",
+  kungalvSearch: "https://www.kungalv.se/Search/Result/",
+  partille: "https://www.partille.se/evenemang/",
+  partilleApi: "https://www.partille.se/_api/eventlistpage/events",
   kungsbacka: "https://bibliotek.kungsbacka.se/evenemang",
 };
 
@@ -68,6 +70,8 @@ function htmlToMd(html) {
     .replace(/&auml;/g, "ä").replace(/&Auml;/g, "Ä")
     .replace(/&ouml;/g, "ö").replace(/&Ouml;/g, "Ö")
     .replace(/&quot;/g, '"').replace(/&#39;/g, "'")
+    .replace(/&#(\d+);/g, (_, n) => String.fromCharCode(+n))
+    .replace(/&#x([0-9a-f]+);/gi, (_, n) => String.fromCharCode(parseInt(n, 16)))
     .replace(/[ \t]+/g, " ")
     .replace(/\n\s+/g, "\n")
     .trim();
@@ -173,6 +177,8 @@ function svDateToISO(s) {
 
 // ============================================================
 // Tolkare: goteborg.se (## TitelVenue / Datum / Tid / Status)
+// Obs: htmlToMd slår samman etikett och värde till en rad,
+// t.ex. "Datum Måndag 5 oktober" och "Tid 09:30–11:30".
 // ============================================================
 function parseGbg(html) {
   const anchors = extractAnchors(html);
@@ -191,22 +197,23 @@ function parseGbg(html) {
       if (/Frölunda\s*$/.test(title)) { venue = "Frölunda Kulturhus"; title = title.replace(/Frölunda\s*$/, "").trim(); }
       if (/Blå\s+Stället/.test(title) && !venue) { venue = "Kulturhuset Blå Stället"; title = title.replace(/Blå\s+Stället/, "").trim(); }
       let j = i + 1, date = "", start = "", end = "", time = "", recurring = false, full = false;
-      let mode = null;
+      const dateM = (l) => { const m = l.match(/^Datum\s+(.+)$/); return m ? m[1].trim() : null; };
+      const timeM = (l) => { const m = l.match(/^Tid\s+(.+)$/); return m ? m[1].trim() : null; };
+      const startM = (l) => { const m = l.match(/^Börjar\s+(.+)$/); return m ? m[1].trim() : null; };
+      const endM = (l) => { const m = l.match(/^Slutar\s+(.+)$/); return m ? m[1].trim() : null; };
       while (j < lines.length && !/^##\s/.test(lines[j] || "")) {
         const l = lines[j];
-        if (l === "Datum") mode = "date";
-        else if (l === "Tid") mode = "time";
-        else if (l === "Status") mode = "status";
-        else if (l === "Börjar") mode = "start";
-        else if (l === "Slutar") mode = "end";
-        else if (l === "Upprepas vid fler tillfällen") { recurring = true; mode = null; }
-        else if (l === "Fullbokad") { full = true; mode = null; }
-        else if (l && mode) {
-          if (mode === "date") date = l;
-          else if (mode === "time") time = l;
-          else if (mode === "start") start = l;
-          else if (mode === "end") end = l;
-        }
+        if (l === "Datum") { j++; if (lines[j]) date = lines[j]; }
+        else if (l === "Tid") { j++; if (lines[j]) time = lines[j]; }
+        else if (l === "Börjar") { j++; if (lines[j]) start = lines[j]; }
+        else if (l === "Slutar") { j++; if (lines[j]) end = lines[j]; }
+        else if (l === "Status") { j++; if (lines[j] && /fullbokad|inställd/i.test(lines[j])) full = true; }
+        else if (l === "Upprepas vid fler tillfällen") { recurring = true; }
+        else if (dateM(l)) date = dateM(l);
+        else if (timeM(l)) time = timeM(l);
+        else if (startM(l)) start = startM(l);
+        else if (endM(l)) end = endM(l);
+        else if (/^Status\s+(Fullbokad|Inställd)/i.test(l)) full = true;
         j++;
       }
       if (!venue && /Frölunda/i.test(title)) venue = "Frölunda Kulturhus";
@@ -362,6 +369,8 @@ function parseHoP(html) {
 
 // ============================================================
 // Tolkare: Kulturhuset Möllan (veckodagsrubriker + titel/tid/plats)
+// Sidan listar återkommande aktiviteter per veckodag: titel på en
+// rad, tidsintervall på nästa, ev. plats på raden efter.
 // ============================================================
 const MOLLAN_VENUE = "Kulturhuset Möllan (Mölndal)";
 function parseMollan(html) {
@@ -369,8 +378,9 @@ function parseMollan(html) {
   const lines = htmlToMd(html).split(/\r?\n/).map((l) => l.trim().replace(/^\*+\s*|^[-–•]\s+/, "")).filter((l) => l !== "---");
   const items = [];
   const dayHeadRe = /^#{2,4}\s+(Måndagar|Tisdagar|Onsdagar|Torsdagar|Fredagar|Lördagar|Söndagar|Dans på Möllan|Bio på Möllan)$/i;
-  const timeRe = /^(\d{1,2}[.:]\d{2})\s*[–-]\s*(\d{1,2}[.:]\d{2})$/;
+  const timeRe = /^(\d{1,2}[.:]\d{2})\s*(?:[–—-]|&)\s*(\d{1,2}[.:]\d{2})$/;
   const placeRe = /^([A-ZÅÄÖ][^#\n\d]{2,40}[a-zåäö.])$/;
+  const titleRe = /^([A-ZÅÄÖ*][^#\n]{2,60})$/;
   let curDay = "";
   let i = 0;
   while (i < lines.length) {
@@ -383,11 +393,14 @@ function parseMollan(html) {
         if (tm) {
           let title = "", k = i - 1;
           while (k >= 0 && !lines[k]) k--;
-          if (k >= 0) title = lines[k].replace(/\*+/g, "").trim();
+          if (k >= 0) {
+            title = lines[k].replace(/\*+/g, "").trim();
+            if (dayHeadRe.test(lines[k]) || timeRe.test(lines[k])) title = "";
+          }
           let place = "";
           const pm = (lines[i + 1] || "").match(placeRe);
-          if (pm) { place = pm[1].trim(); i++; }
-          if (title && title.length > 2 && !dayHeadRe.test(title) && !timeRe.test(title)) {
+          if (pm && !timeRe.test(lines[i + 1])) { place = pm[1].trim(); i++; }
+          if (title && title.length > 2 && titleRe.test(title)) {
             const it = {
               title, venue: MOLLAN_VENUE, source: "kulturhusetmollan.se",
               date: curDay, time: tm[1].replace(".", ":") + "–" + tm[2].replace(".", ":"),
@@ -407,105 +420,147 @@ function parseMollan(html) {
 }
 
 // ============================================================
-// Tolkare: Mimers Kulturhus, Kungälv (datumintervall följt av titel)
+// Kungälv: evenemangskalendern är Angular-renderad, men sajten har
+// ett sök-API (POST /Search/Result/) som returnerar evenemang som
+// JSON med datum i Description. Tom sökfråga ger 0 träffar, så vi
+// itererar bokstäver a-ö och deduplicerar på Url.
 // ============================================================
 const KUNGALV_VENUE = "Mimers Kulturhus (Kungälv)";
 const KUNGALV_MONTHS = ["jan","feb","mar","apr","maj","jun","jul","aug","sep","okt","nov","dec"];
-function parseKungalv(html) {
-  const anchors = extractAnchors(html);
-  const lines = htmlToMd(html).split(/\r?\n/).map((l) => l.trim().replace(/^\*+\s*|^[-–•]\s+/, ""));
+const KUNGALV_MONTH_SV = SV_MONTHS;
+function decodeEntities(s) {
+  return String(s || "")
+    .replace(/<[^>]+>/g, " ")
+    .replace(/&nbsp;/g, " ")
+    .replace(/&#(\d+);/g, (_, n) => String.fromCharCode(+n))
+    .replace(/&amp;/g, "&")
+    .replace(/&aring;/g, "å").replace(/&auml;/g, "ä").replace(/&ouml;/g, "ö")
+    .replace(/&Aring;/g, "Å").replace(/&Auml;/g, "Ä").replace(/&Ouml;/g, "Ö")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+function kungalvDateToISO(dateStr) {
+  const m = String(dateStr || "").match(/(\d{1,2})\s+([a-zåäö]{3})/i);
+  if (!m) return null;
+  const mi = KUNGALV_MONTHS.indexOf(m[2].toLowerCase());
+  if (mi === -1) return null;
+  const now = new Date();
+  let year = now.getFullYear();
+  if (mi < now.getMonth()) year++;
+  return `${year}-${String(mi + 1).padStart(2, "0")}-${String(+m[1]).padStart(2, "0")}`;
+}
+async function fetchKungalvEvents() {
+  const all = new Map();
+  const queries = "abcdefghijklmnopqrstuvwxyzåäö".split("");
+  const fetchPage = async (query, page) => {
+    const params = new URLSearchParams({
+      search: query, getTotals: "false", currentPage: String(page),
+      searchObjectType: "8", restrictToType: "true", language: "sv", categoryFilter: "",
+    });
+    const ctrl = new AbortController();
+    const timer = setTimeout(() => ctrl.abort(), FETCH_TIMEOUT_MS);
+    try {
+      const res = await fetch(SOURCES.kungalvSearch, {
+        method: "POST",
+        headers: { ...HEADERS, "Content-Type": "application/x-www-form-urlencoded; charset=UTF-8", "X-Requested-With": "XMLHttpRequest" },
+        body: params.toString(),
+        signal: ctrl.signal,
+      });
+      if (!res.ok) throw new Error("HTTP " + res.status);
+      const j = await res.json();
+      return j.PageResult || [];
+    } finally { clearTimeout(timer); }
+  };
+  await Promise.all(queries.map(async (query) => {
+    try {
+      for (let page = 1; page <= 3; page++) {
+        const list = await fetchPage(query, page);
+        if (!list.length) break;
+        for (const hit of list) all.set(hit.Url, hit);
+      }
+    } catch (e) { /* enskild fråga misslyckas -> nästa */ }
+  }));
   const items = [];
-  const dateLineRe = /^(\d{1,2})\s+([a-zåäö]{3})\s*[-–]\s*(?:(\d{1,2})\s+)?([a-zåäö]{3})?/i;
-  let i = 0;
-  while (i < lines.length) {
-    const raw = lines[i] || "";
-    const dm = raw.match(dateLineRe);
-    if (dm && raw.replace(/\*/g, "").trim().length < 90) {
-      const mi1 = KUNGALV_MONTHS.indexOf(dm[2].toLowerCase());
-      if (mi1 !== -1) {
-        const clean = raw.replace(/\*/g, "").trim();
-        const dateEnd = clean.indexOf(dm[4] || dm[3] || "") + (dm[4] || dm[3] || "").length;
-        const dateStr = clean.slice(0, dateEnd).trim();
-        const desc = clean.slice(dateEnd).trim();
-        let j = i + 1;
-        while (j < lines.length && !lines[j]) j++;
-        const title = (lines[j] || "").trim();
-        if (title && title.length > 2 && !dateLineRe.test(title)) {
-          const cur = new Date();
-          let year = cur.getFullYear();
-          if (mi1 < cur.getMonth()) year++;
-          const iso = `${year}-${String(mi1 + 1).padStart(2, "0")}-${String(+dm[1]).padStart(2, "0")}`;
-          let isoEnd = iso;
-          if (dm[4] || dm[3]) {
-            const mi2 = dm[4] ? KUNGALV_MONTHS.indexOf(dm[4].toLowerCase()) : mi1;
-            if (mi2 !== -1) {
-              let y2 = year;
-              if (mi2 < mi1) y2++;
-              isoEnd = `${y2}-${String(mi2 + 1).padStart(2, "0")}-${String(+(dm[3] || dm[1])).padStart(2, "0")}`;
-            }
-          }
-          const it = {
-            title, venue: KUNGALV_VENUE, source: "kungalv.se",
-            date: dateStr, time: "", start: "", end: "",
-            full: false, recurring: false,
-            desc: desc.slice(0, 400), iso, isoEnd,
-          };
-          it.category = categorize(it);
-          it.link = findLink(anchors, it.title, it.source);
-          items.push(it);
-          i = j + 1; continue;
-        }
+  for (const hit of all.values()) {
+    const title = decodeEntities(hit.Title);
+    const desc = decodeEntities(hit.Description);
+    const dateMatch = desc.match(/(\d{1,2}\s+[a-zåäö]{3}\s*(?:-\s*\d{1,2}\s+[a-zåäö]{3})?)/i);
+    const dateStr = dateMatch ? dateMatch[1] : "";
+    let iso = kungalvDateToISO(dateStr);
+    let isoEnd = iso;
+    const endM = dateStr && dateStr.match(/-\s*(\d{1,2})\s+([a-zåäö]{3})/i);
+    if (endM) {
+      const mi = KUNGALV_MONTHS.indexOf(endM[2].toLowerCase());
+      if (mi !== -1) {
+        const now = new Date();
+        let year = now.getFullYear();
+        if (iso && iso.slice(0, 4) === String(year) && mi < now.getMonth()) year++;
+        else if (iso) year = +iso.slice(0, 4);
+        isoEnd = `${year}-${String(mi + 1).padStart(2, "0")}-${String(+endM[1]).padStart(2, "0")}`;
       }
     }
-    i++;
+    const it = {
+      title, venue: KUNGALV_VENUE, source: "kungalv.se",
+      date: dateStr, time: "", start: "", end: "",
+      full: false, recurring: !!endM,
+      desc: desc.replace(dateStr, "").trim().slice(0, 400),
+      iso, isoEnd,
+    };
+    it.category = categorize(it);
+    it.link = safeLink(hit.Url) || "https://www.kungalv.se/kultur--fritid/evenemang-kungalv/";
+    items.push(it);
   }
   return items;
 }
 
 // ============================================================
-// Tolkare: Partille Kulturum (### titel / datum tid / plats)
+// Partille: evenemangskalendern laddas med Vue från ett öppet
+// JSON-API (/_api/eventlistpage/events) med paginering via
+// take/skip. Endast evenemang i framtiden hämtas (from=dagens dato).
 // ============================================================
 const PARTILLE_VENUE = "Partille Kulturum";
-const PARTILLE_MONTHS = SV_MONTHS;
-function parsePartille(html) {
-  const anchors = extractAnchors(html);
-  const lines = htmlToMd(html).split(/\r?\n/).map((l) => l.trim().replace(/^\*+\s*|^[-–•]\s+/, ""));
-  const items = [];
-  const titleRe = /^#{2,4}\s+(.+)$/;
-  const dateRe = /^(\d{1,2})\s+([a-zåäö]+)\s+(\d{1,2}[.:]\d{2})\s*[-–]\s*(\d{1,2}[.:]\d{2})$/i;
-  let i = 0;
-  while (i < lines.length) {
-    const tm = lines[i] && lines[i].match(titleRe);
-    if (tm && !/Evenemangskalender|Vanliga|Genvägar|Till startsidan/i.test(lines[i])) {
-      const title = tm[1].trim();
-      let j = i + 1;
-      while (j < lines.length && !lines[j]) j++;
-      const dm = lines[j] && lines[j].match(dateRe);
-      if (dm) {
-        const timeStr = dm[3].replace(".", ":") + "–" + dm[4].replace(".", ":");
-        j++;
-        let place = "";
-        if (lines[j] && !/^Fler tillfällen|^###|^\d{1,2} sep/.test(lines[j]) && lines[j].length < 60 && !dateRe.test(lines[j])) { place = lines[j]; j++; }
-        const recurring = /^Fler tillfällen/.test(lines[j] || "");
-        const mi = PARTILLE_MONTHS.indexOf(dm[2].toLowerCase());
-        const cur = new Date();
-        let year = cur.getFullYear();
-        if (mi !== -1 && mi < cur.getMonth()) year++;
-        const iso = mi !== -1 ? `${year}-${String(mi + 1).padStart(2, "0")}-${String(+dm[1]).padStart(2, "0")}` : null;
-        const it = {
-          title, venue: PARTILLE_VENUE, source: "partille.se",
-          date: `${dm[1]} ${dm[2]}`, time: timeStr, start: "", end: "",
-          full: false, recurring,
-          desc: place ? "Plats: " + place : "", iso, isoEnd: iso,
-        };
-        it.category = categorize(it);
-        it.link = findLink(anchors, it.title, it.source);
-        items.push(it);
-        i = j; continue;
-      }
-    }
-    i++;
+async function fetchPartilleEvents() {
+  const today = new Date();
+  const todayStr = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, "0")}-${String(today.getDate()).padStart(2, "0")}`;
+  const pageSize = 100;
+  const all = [];
+  let skip = 0;
+  while (skip < 500) {
+    const ctrl = new AbortController();
+    const timer = setTimeout(() => ctrl.abort(), FETCH_TIMEOUT_MS);
+    let page;
+    try {
+      const res = await fetch(`${SOURCES.partilleApi}?take=${pageSize}&skip=${skip}&from=${todayStr}`, {
+        headers: { ...HEADERS, Accept: "application/json" },
+        signal: ctrl.signal,
+      });
+      if (!res.ok) throw new Error("HTTP " + res.status);
+      page = await res.json();
+    } finally { clearTimeout(timer); }
+    const hits = page.EventPageHits || [];
+    if (!hits.length) break;
+    all.push(...hits);
+    if (all.length >= (page.TotalHits || 0)) break;
+    skip += pageSize;
   }
+  const items = all.map((e) => {
+    const from = e.EventFromDate ? new Date(e.EventFromDate) : null;
+    const to = e.EventToDate ? new Date(e.EventToDate) : null;
+    const iso = from && !isNaN(from) ? from.toISOString().slice(0, 10) : null;
+    const isoEnd = to && !isNaN(to) ? to.toISOString().slice(0, 10) : iso;
+    const timeStr = from && !isNaN(from) ? String(from.getUTCHours()).padStart(2, "0") + ":" + String(from.getUTCMinutes()).padStart(2, "0") : "";
+    const venue = e.Location && /kulturum/i.test(e.Location) ? PARTILLE_VENUE : (e.Location || PARTILLE_VENUE);
+    const it = {
+      title: decodeEntities(e.Title), venue, source: "partille.se",
+      date: iso || "", time: timeStr, start: "", end: "",
+      full: false, recurring: !!e.HasMultipleDates,
+      desc: e.Category ? "Kategori: " + e.Category : "",
+      iso, isoEnd,
+    };
+    it.category = categorize(it);
+    it.link = safeLink((e.Url || "").replace(/^\/\//, "https://")) || SOURCES.partille;
+    return it;
+  });
   return items;
 }
 
@@ -557,8 +612,8 @@ async function fetchAllEvents() {
     parseSource(SOURCES.mh, parseMH),
     parseSource(SOURCES.hop, parseHoP),
     parseSource(SOURCES.mollan, parseMollan),
-    parseSource(SOURCES.kungalv, parseKungalv),
-    parseSource(SOURCES.partille, parsePartille),
+    fetchKungalvEvents(),
+    fetchPartilleEvents(),
     parseSource(SOURCES.kungsbacka, parseKungsbacka),
   ]);
   const NAMES = ["goteborg.se", "musikenshus.se", "houseofpossibilitas.se", "kulturhusetmollan.se", "kungalv.se", "partille.se", "bibliotek.kungsbacka.se"];
@@ -614,32 +669,48 @@ export async function onRequestGet(context) {
 
   if (path === "/api/debug") {
     const report = {};
-    const sources = [
+    const htmlSources = [
       ["goteborg.se", SOURCES.gbg, parseGbg],
       ["musikenshus.se", SOURCES.mh, parseMH],
       ["houseofpossibilitas.se", SOURCES.hop, parseHoP],
       ["kulturhusetmollan.se", SOURCES.mollan, parseMollan],
-      ["kungalv.se", SOURCES.kungalv, parseKungalv],
-      ["partille.se", SOURCES.partille, parsePartille],
       ["bibliotek.kungsbacka.se", SOURCES.kungsbacka, parseKungsbacka],
     ];
-    await Promise.all(sources.map(async ([name, urlSrc, fn]) => {
-      const info = {};
-      try {
-        const res = await fetchPage(urlSrc);
-        info.http = "OK";
-        info.rawLength = res.length;
-        info.isHtml = /<html/i.test(res);
-        info.rawHead = res.slice(0, 200);
-        const items = fn(res);
-        info.parsedItems = items.length;
-        const md = htmlToMd(res);
-        info.mdHead = md.slice(0, 400);
-      } catch (e) {
-        info.http = "FEL: " + String(e).slice(0, 200);
-      }
-      report[name] = info;
-    }));
+    const apiSources = [
+      ["kungalv.se", fetchKungalvEvents],
+      ["partille.se", fetchPartilleEvents],
+    ];
+    await Promise.all([
+      ...htmlSources.map(async ([name, urlSrc, fn]) => {
+        const info = {};
+        try {
+          const res = await fetchPage(urlSrc);
+          info.http = "OK";
+          info.rawLength = res.length;
+          info.isHtml = /<html/i.test(res);
+          info.rawHead = res.slice(0, 200);
+          const items = fn(res);
+          info.parsedItems = items.length;
+          const md = htmlToMd(res);
+          info.mdHead = md.slice(0, 400);
+        } catch (e) {
+          info.http = "FEL: " + String(e).slice(0, 200);
+        }
+        report[name] = info;
+      }),
+      ...apiSources.map(async ([name, fetchFn]) => {
+        const info = {};
+        try {
+          const items = await fetchFn();
+          info.http = "OK";
+          info.parsedItems = items.length;
+          if (items[0]) info.sample = items[0].title;
+        } catch (e) {
+          info.http = "FEL: " + String(e).slice(0, 200);
+        }
+        report[name] = info;
+      }),
+    ]);
     return new Response(JSON.stringify(report, null, 2), { headers: CORS });
   }
 

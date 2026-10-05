@@ -17,12 +17,12 @@ functions/api/[[route]].js    – Cloudflare Pages Function (backend)
 
 ## Källor
 
-- goteborg.se (kulturhusen, via Jina Reader p.g.a. JS-renderad sida)
+- goteborg.se (kulturhusen – sidan är servern-renderad, hämtas direkt)
 - musikenshus.se
 - houseofpossibilitas.se
 - kulturhusetmollan.se
-- kungalv.se
-- partille.se
+- kungalv.se (Angular-renderad kalender – hämtas via sajtens sök-API `POST /Search/Result/`)
+- partille.se (Vue-renderad kalender – hämtas via sajtens JSON-API `/_api/eventlistpage/events`)
 - bibliotek.kungsbacka.se
 
 ## Deployment (Cloudflare Pages)
