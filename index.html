@@ -236,12 +236,21 @@ document.getElementById("copyBtn").onclick = async e => {
 document.getElementById("refreshBtn").onclick = () => autoUpdate(false, true);
 
 // Hämtar från /api/events på samma domän (Pages Function)
+// Returnerar true om svaret kom från servercachen (dvs. en färsk
+// bakgrundshämtning behövs), annars false.
+async function autoUpdateCachedAware() {
+  const ok = await autoUpdate(true, false);
+  return ok && window.__lastResponseCached;
+}
+
 async function autoUpdate(silent, force) {
   if (!silent) { document.getElementById("refreshBtn").disabled = true; document.getElementById("refreshBtn").textContent = "Hämtar…"; }
   try {
-    const res = await fetch("/api/events" + (force ? "?refresh=1" : ""), { headers: { "Accept": "application/json" } });
+    const res = await fetch("/api/events" + (force ? "?refresh=1&_=" + Date.now() : "?_=" + Date.now()), { headers: { "Accept": "application/json" }, cache: "no-store" });
     if (!res.ok) throw new Error("HTTP " + res.status);
     const data = await res.json();
+    window.__lastResponseCached = !!data.cached;
+    window.__fetchedAtMs = data.fetchedAt ? new Date(data.fetchedAt).getTime() : 0;
     if (!data.items || !data.items.length) throw new Error("inga evenemang");
     loadItems(data.items);
     const counts = data.counts || {};
@@ -261,7 +270,14 @@ async function autoUpdate(silent, force) {
   }
 }
 
-(async () => { await autoUpdate(true); })();
+// Vid sidladdning: rendera direkt (cachat svar visas direkt om det
+// finns) och hämta färsk data i bakgrunden när cachad data är äldre
+// än en timme — besökaren slipper klicka Uppdatera.
+(async () => {
+  const cached = await autoUpdateCachedAware();
+  const age = Date.now() - (window.__fetchedAtMs || 0);
+  if (cached && age > 60 * 60 * 1000) await autoUpdate(true, true);
+})();
 </script>
 </body>
 </html>
