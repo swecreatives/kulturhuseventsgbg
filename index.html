@@ -263,6 +263,35 @@ function setLoading(msg) {
   if (el) el.textContent = msg;
 }
 
+// Lokal persistens: spara senaste lyckade svaret i localStorage så att
+// sidan kan rendera direkt vid nästa besök utan att vänta på API:et.
+const LS_KEY = "khv_events_v1";
+function saveLocal(data) {
+  try { localStorage.setItem(LS_KEY, JSON.stringify(data)); } catch (e) {}
+}
+function loadLocal() {
+  try {
+    const raw = localStorage.getItem(LS_KEY);
+    if (!raw) return null;
+    const data = JSON.parse(raw);
+    if (!data || !data.items || !data.items.length) return null;
+    if (Date.now() - (data.savedAtMs || 0) > 7 * 24 * 60 * 60 * 1000) return null;
+    return data;
+  } catch (e) { return null; }
+}
+
+// Rendera ett sparat/lokalt svar utan nätverksanrop
+function renderSaved(data) {
+  loadItems(data.items);
+  const counts = data.counts || {};
+  const rows = Object.entries(SOURCE_LABELS).map(([src, label]) => {
+    const n = counts[src] !== undefined ? counts[src] : data.items.filter(x => x.source === src).length;
+    return [label, n > 0 ? n + " evenemang" : "0 – inga evenemang just nu", n > 0 ? "ok" : "err"];
+  });
+  setSrcStatus(rows);
+  setLoading("Visar sparad data från " + (data.fetchedAt ? new Date(data.fetchedAt).toLocaleString("sv-SE") : "tidigare besök") + " – hämtar färsk data…");
+}
+
 async function autoUpdate(silent, force) {
   if (!silent) { document.getElementById("refreshBtn").disabled = true; document.getElementById("refreshBtn").textContent = "Hämtar…"; }
   else setLoading("Hämtar evenemang… (kan ta någon minut första gången)");
@@ -273,6 +302,7 @@ async function autoUpdate(silent, force) {
     window.__lastResponseCached = !!data.cached;
     window.__fetchedAtMs = data.fetchedAt ? new Date(data.fetchedAt).getTime() : 0;
     if (!data.items || !data.items.length) throw new Error("inga evenemang");
+    saveLocal({ items: data.items, counts: data.counts || null, errors: data.errors || null, fetchedAt: data.fetchedAt || null, savedAtMs: Date.now() });
     loadItems(data.items);
     const counts = data.counts || {};
     const rows = Object.entries(SOURCE_LABELS).map(([src, label]) => {
@@ -292,13 +322,15 @@ async function autoUpdate(silent, force) {
   }
 }
 
-// Vid sidladdning: rendera direkt (cachat svar visas direkt om det
-// finns) och hämta färsk data i bakgrunden när cachad data är äldre
-// än en timme — besökaren slipper klicka Uppdatera.
+// Vid sidladdning: rendera lokalt sparad data direkt (om den finns) och
+// hämta färsk data i bakgrunden — sidan visas omedelbart och besökaren
+// slipper vänta på API:et eller klicka Uppdatera.
 (async () => {
-  const cached = await autoUpdateCachedAware();
+  const local = loadLocal();
+  if (local) renderSaved(local);
+  const ok = await autoUpdateCachedAware();
   const age = Date.now() - (window.__fetchedAtMs || 0);
-  if (cached && age > 60 * 60 * 1000) await autoUpdate(true, true);
+  if (ok && window.__lastResponseCached && age > 60 * 60 * 1000) await autoUpdate(true, true);
 })();
 </script>
 </body>
