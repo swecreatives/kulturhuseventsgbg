@@ -90,6 +90,11 @@
         <option value="full">Fullbokade</option>
         <option value="open">Med platser kvar</option>
       </select>
+      <select id="dayFilter">
+        <option value="">Alla datum</option>
+        <option value="today">Endast idag</option>
+        <option value="week">Endast denna vecka</option>
+      </select>
       <button id="csvBtn" class="secondary" disabled>Exportera CSV</button>
       <button id="jsonBtn" class="secondary" disabled>Exportera JSON</button>
       <button id="copyBtn" class="secondary" disabled>Kopiera JSON</button>
@@ -168,11 +173,21 @@ function render() {
   const c = document.getElementById("categoryFilter").value;
   const src = document.getElementById("sourceFilter").value;
   const s = document.getElementById("statusFilter").value;
+  const d = document.getElementById("dayFilter").value;
   const today = new Date().toISOString().slice(0, 10);
   const maxDate = new Date(Date.now() + dateWindowDays * 86400000).toISOString().slice(0, 10);
+  const now = new Date();
+  const monday = new Date(now);
+  monday.setHours(0, 0, 0, 0);
+  monday.setDate(monday.getDate() - ((monday.getDay() + 6) % 7));
+  const sunday = new Date(monday);
+  sunday.setDate(sunday.getDate() + 6);
+  const weekStart = monday.toISOString().slice(0, 10);
+  const weekEnd = sunday.toISOString().slice(0, 10);
   view = DATA.filter(x =>
     (!x.isoEnd || x.isoEnd >= today) &&
     (!x.iso || x.iso <= maxDate) &&
+    (!d || !x.iso || (d === "today" ? (x.iso === today || (x.iso < today && x.isoEnd && x.isoEnd >= today)) : (x.iso >= weekStart && x.iso <= weekEnd))) &&
     (!q || x.title.toLowerCase().includes(q) || x.venue.toLowerCase().includes(q) || (x.desc || "").toLowerCase().includes(q)) &&
     (!v || x.venue === v) &&
     (!c || x.category === c) &&
@@ -210,6 +225,7 @@ function render() {
 document.getElementById("venueFilter").addEventListener("change", render);
 document.getElementById("categoryFilter").addEventListener("change", render);
 document.getElementById("sourceFilter").addEventListener("change", render);
+document.getElementById("dayFilter").addEventListener("change", render);
 document.getElementById("tbl").addEventListener("click", e => {
   const th = e.target.closest("th[data-k]");
   if (!th) return;
