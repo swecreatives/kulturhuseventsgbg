@@ -17,7 +17,7 @@
 // ============================================================
 
 // ---------- Konfiguration ----------
-const CACHE_TTL_MS = 6 * 60 * 60 * 1000; // 6 timmar
+const CACHE_TTL_MS = 60 * 60 * 1000; // 1 timme
 const FETCH_TIMEOUT_MS = 15000;
 const HEADERS = {
   "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0 Safari/537.36",
