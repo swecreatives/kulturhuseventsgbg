@@ -19,6 +19,8 @@
 // ---------- Konfiguration ----------
 const CACHE_TTL_MS = 60 * 60 * 1000; // 1 timme
 const FETCH_TIMEOUT_MS = 15000;
+const SLOW_SOURCE_TIMEOUT_MS = 5000;
+const SLOW_SOURCES = /kungsbacka\.se/;
 const HEADERS = {
   "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0 Safari/537.36",
   "Accept": "text/html,application/xhtml+xml",
@@ -103,8 +105,9 @@ async function fetchPage(url) {
     : url;
   const headers = { ...HEADERS };
   if (useJina && ENV.JINA_API_KEY) headers["Authorization"] = "Bearer " + ENV.JINA_API_KEY;
+  const timeoutMs = SLOW_SOURCES.test(url) ? SLOW_SOURCE_TIMEOUT_MS : FETCH_TIMEOUT_MS;
   const ctrl = new AbortController();
-  const timer = setTimeout(() => ctrl.abort(), FETCH_TIMEOUT_MS);
+  const timer = setTimeout(() => ctrl.abort(), timeoutMs);
   try {
     const res = await fetch(target, { headers, signal: ctrl.signal, redirect: "follow" });
     if (!res.ok) throw new Error("HTTP " + res.status);
@@ -633,18 +636,48 @@ async function fetchAllEvents() {
 }
 
 // ============================================================
-// Cache (per isolate)
+// Cache: modul-global (per isolate) + Cache API (överlever isolate-återstarter)
 // ============================================================
+const EDGE_CACHE_KEY = new Request("https://kulturhus-cache.internal/api/events");
+
+async function readEdgeCache() {
+  try {
+    const c = caches.default;
+    const hit = await c.match(EDGE_CACHE_KEY);
+    if (hit) return await hit.json();
+  } catch (e) { /* Cache API ej tillgänglig -> hoppa över */ }
+  return null;
+}
+
+async function writeEdgeCache(data) {
+  try {
+    const c = caches.default;
+    await c.put(EDGE_CACHE_KEY, new Response(JSON.stringify(data), {
+      headers: { "content-type": "application/json", "cache-control": `max-age=${Math.floor(CACHE_TTL_MS / 1000)}` },
+    }));
+  } catch (e) { /* ignorera */ }
+}
+
 async function getEvents(force) {
-  if (!force && CACHE.data.length && Date.now() - CACHE.ts < CACHE_TTL_MS) {
-    return { ...CACHE, cached: true };
+  if (!force) {
+    if (CACHE.data.length && Date.now() - CACHE.ts < CACHE_TTL_MS) {
+      return { ...CACHE, cached: true };
+    }
+    const edge = await readEdgeCache();
+    if (edge && edge.items && edge.items.length) {
+      CACHE = { ts: Date.now(), ...edge };
+      return { ...edge, cached: true };
+    }
   }
   const fresh = await fetchAllEvents();
   if (fresh.items.length > 0) {
     CACHE = { ts: Date.now(), ...fresh };
+    await writeEdgeCache(fresh);
     return { ...fresh, cached: false };
   }
   if (CACHE.data.length) return { ...CACHE, cached: true, stale: true };
+  const edge = await readEdgeCache();
+  if (edge && edge.items && edge.items.length) return { ...edge, cached: true, stale: true };
   return fresh;
 }
 
@@ -665,7 +698,7 @@ export async function onRequestGet(context) {
     const force = url.searchParams.get("refresh") === "1";
     const data = await getEvents(force);
     return new Response(JSON.stringify(data), {
-      headers: { ...CORS, "cache-control": "public, max-age=1800" },
+      headers: { ...CORS, "cache-control": force ? "no-store" : "public, max-age=1800" },
     });
   }
 
