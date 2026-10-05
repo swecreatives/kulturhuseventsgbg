@@ -139,7 +139,8 @@ const CATEGORY_RULES = [
 ];
 function categorize(item) {
   const t = (item.title + " " + (item.desc || "")).toLowerCase();
-  for (const [id, re] of CATEGORY_RULES) if (re.test(item.title) || re.test(t)) return id;
+  for (const [id, re] of CATEGORY_RULES) if (re.test(item.title)) return id;
+  for (const [id, re] of CATEGORY_RULES) if (re.test(t)) return id;
   return "ovrigt";
 }
 
