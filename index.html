@@ -119,6 +119,17 @@ function findLink(title, source) {
 }
 
 let DATA = [], view = [], sortKey = "date", sortAsc = true;
+let dateWindowDays = 7;
+
+// Utöka datumfönstret en vecka i taget när användaren skrollar mot botten
+function extendDateWindow() {
+  const maxDate = new Date(Date.now() + dateWindowDays * 86400000).toISOString().slice(0, 10);
+  const hasMore = DATA.some(x => x.iso && x.iso > maxDate);
+  if (hasMore) { dateWindowDays += 7; render(); }
+}
+window.addEventListener("scroll", () => {
+  if (window.innerHeight + window.scrollY >= document.body.offsetHeight - 300) extendDateWindow();
+}, { passive: true });
 
 const SOURCE_LABELS = {
   "goteborg.se": "goteborg.se (kulturhusen)",
@@ -158,8 +169,10 @@ function render() {
   const src = document.getElementById("sourceFilter").value;
   const s = document.getElementById("statusFilter").value;
   const today = new Date().toISOString().slice(0, 10);
+  const maxDate = new Date(Date.now() + dateWindowDays * 86400000).toISOString().slice(0, 10);
   view = DATA.filter(x =>
     (!x.isoEnd || x.isoEnd >= today) &&
+    (!x.iso || x.iso <= maxDate) &&
     (!q || x.title.toLowerCase().includes(q) || x.venue.toLowerCase().includes(q) || (x.desc || "").toLowerCase().includes(q)) &&
     (!v || x.venue === v) &&
     (!c || x.category === c) &&
@@ -173,8 +186,9 @@ function render() {
     else r = (a.iso || "9999") < (b.iso || "9999") ? -1 : (a.iso || "9999") > (b.iso || "9999") ? 1 : 0;
     return sortAsc ? r : -r;
   });
+  const hidden = DATA.filter(x => x.iso && x.iso > maxDate).length;
   document.getElementById("stats").textContent =
-    `${view.length} av ${DATA.length} aktiviteter`;
+    `${view.length} av ${DATA.length} aktiviteter` + (hidden ? ` – ${hidden} senare datum visas vid skroll` : "");
   document.querySelector("#tbl thead tr").innerHTML =
     `<th data-k="title">Titel ${sortKey==="title"?(sortAsc?"▲":"▼"):""}</th>
      <th data-k="venue">Kulturhus ${sortKey==="venue"?(sortAsc?"▲":"▼"):""}</th>
