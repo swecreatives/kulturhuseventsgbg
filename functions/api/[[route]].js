@@ -174,7 +174,9 @@ function svDateToISO(s) {
   if (mi === -1) return null;
   const now = new Date();
   let year = now.getFullYear();
-  if (mi < now.getMonth()) year++;
+  const thisYear = new Date(year, mi, +m[1]);
+  const cutoff = new Date(now.getTime() - 90 * 24 * 60 * 60 * 1000);
+  if (thisYear < cutoff) year++;
   return `${year}-${String(mi + 1).padStart(2, "0")}-${String(+m[1]).padStart(2, "0")}`;
 }
 
@@ -321,7 +323,9 @@ function hopDateToISO(dateStr) {
   if (mi === -1) return null;
   const now = new Date();
   let year = now.getFullYear();
-  if (mi < now.getMonth()) year++;
+  const thisYear = new Date(year, mi, +m[1]);
+  const cutoff = new Date(now.getTime() - 90 * 24 * 60 * 60 * 1000);
+  if (thisYear < cutoff) year++;
   return `${year}-${String(mi + 1).padStart(2, "0")}-${String(+m[1]).padStart(2, "0")}`;
 }
 // House of Possibilitas: "fre 2 okt" / "10:00" / "### Titel" / beskrivning
@@ -449,7 +453,9 @@ function kungalvDateToISO(dateStr) {
   if (mi === -1) return null;
   const now = new Date();
   let year = now.getFullYear();
-  if (mi < now.getMonth()) year++;
+  const thisYear = new Date(year, mi, +m[1]);
+  const cutoff = new Date(now.getTime() - 90 * 24 * 60 * 60 * 1000);
+  if (thisYear < cutoff) year++;
   return `${year}-${String(mi + 1).padStart(2, "0")}-${String(+m[1]).padStart(2, "0")}`;
 }
 async function fetchKungalvEvents() {
