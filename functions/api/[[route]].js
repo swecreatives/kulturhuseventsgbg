@@ -29,6 +29,7 @@ const HEADERS = {
 
 const SOURCES = {
   gbg: "https://goteborg.se/wps/portal/start/uppleva-och-gora/kultur/kulturhus/program-pa-kulturhusen",
+  gbgUtst: "https://goteborg.se/wps/portal/start/uppleva-och-gora/kultur/kulturhus/utstallningar-pa-kulturhusen/aktuella-utstallningar",
   mh: "https://www.musikenshus.se/kalender/",
   hop: "https://houseofpossibilitas.se/evenemang/",
   mollan: "https://kulturhusetmollan.se/evenemang/",
@@ -620,6 +621,7 @@ function parseKungsbacka(html) {
 async function fetchAllEvents() {
   const results = await Promise.allSettled([
     parseSource(SOURCES.gbg, parseGbg),
+    parseSource(SOURCES.gbgUtst, parseGbg),
     parseSource(SOURCES.mh, parseMH),
     parseSource(SOURCES.hop, parseHoP),
     parseSource(SOURCES.mollan, parseMollan),
@@ -627,13 +629,29 @@ async function fetchAllEvents() {
     fetchPartilleEvents(),
     parseSource(SOURCES.kungsbacka, parseKungsbacka),
   ]);
-  const NAMES = ["goteborg.se", "musikenshus.se", "houseofpossibilitas.se", "kulturhusetmollan.se", "kungalv.se", "partille.se", "bibliotek.kungsbacka.se"];
+  const NAMES = ["goteborg.se", "goteborg.se-utst", "musikenshus.se", "houseofpossibilitas.se", "kulturhusetmollan.se", "kungalv.se", "partille.se", "bibliotek.kungsbacka.se"];
   let items = [];
   const errors = [];
   const counts = {};
+  const seen = new Set();
   results.forEach((r, idx) => {
     const n = r.status === "fulfilled" ? r.value.length : 0;
+    if (NAMES[idx] === "goteborg.se-utst") {
+      const extra = r.status === "fulfilled" ? r.value.filter((it) => {
+        const key = (it.title + "|" + it.venue + "|" + (it.iso || "")).toLowerCase();
+        if (seen.has(key)) return false;
+        seen.add(key); return true;
+      }) : [];
+      items = items.concat(extra);
+      return;
+    }
     counts[NAMES[idx]] = n;
+    if (NAMES[idx] === "goteborg.se") {
+      if (r.status === "fulfilled") r.value.forEach((it) => {
+        const key = (it.title + "|" + it.venue + "|" + (it.iso || "")).toLowerCase();
+        seen.add(key);
+      });
+    }
     if (r.status === "fulfilled" && r.value.length) items = items.concat(r.value);
     else errors.push(NAMES[idx] + ": " + (r.status === "rejected" ? String(r.reason).slice(0, 100) : "inga evenemang hittades"));
   });
