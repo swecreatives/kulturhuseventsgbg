@@ -124,6 +124,37 @@ async function parseSource(url, parseFn) {
   return parseFn(html);
 }
 
+// goteborg.se paginerar programlistan (~24 evenemang per sida) via ?page=N.
+// Hämta alla sidor i parallella batchar tills en batch inte ger nya evenemang.
+const GBG_MAX_PAGES = 40;
+const GBG_BATCH_SIZE = 8;
+async function parseSourcePaged(url, parseFn) {
+  const seen = new Map();
+  const sig = (it) => (it.title + "|" + it.venue + "|" + (it.iso || "") + "|" + (it.date || "") + "|" + (it.time || "")).toLowerCase();
+  for (let start = 0; start < GBG_MAX_PAGES; start += GBG_BATCH_SIZE) {
+    const pages = await Promise.allSettled(
+      Array.from({ length: GBG_BATCH_SIZE }, (_, k) => {
+        const page = start + k;
+        const pageUrl = url + (url.includes("?") ? "&" : "?") + "page=" + page;
+        return parseSource(pageUrl, parseFn);
+      })
+    );
+    let added = 0;
+    let okFirst = null;
+    for (const r of pages) {
+      if (r.status !== "fulfilled") continue;
+      for (const it of r.value) {
+        const k = sig(it);
+        if (!seen.has(k)) { seen.set(k, it); added++; }
+      }
+      if (okFirst === null && r.value.length) okFirst = r.value.length;
+    }
+    if (added === 0 && (start > 0 || okFirst === null)) break;
+    if (pages.every((r) => r.status !== "fulfilled" || !r.value.length)) break;
+  }
+  return [...seen.values()];
+}
+
 // ============================================================
 // Kategorisering
 // ============================================================
@@ -620,8 +651,8 @@ function parseKungsbacka(html) {
 // ============================================================
 async function fetchAllEvents() {
   const results = await Promise.allSettled([
-    parseSource(SOURCES.gbg, parseGbg),
-    parseSource(SOURCES.gbgUtst, parseGbg),
+    parseSourcePaged(SOURCES.gbg, parseGbg),
+    parseSourcePaged(SOURCES.gbgUtst, parseGbg),
     parseSource(SOURCES.mh, parseMH),
     parseSource(SOURCES.hop, parseHoP),
     parseSource(SOURCES.mollan, parseMollan),
