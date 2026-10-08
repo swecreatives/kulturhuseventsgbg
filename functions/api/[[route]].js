@@ -647,20 +647,37 @@ function parseKungsbacka(html) {
 }
 
 // ============================================================
-// Hämtning + tolkning av alla källor
+// Hämtning + tolkning av alla källor.
+// Cloudflare Pages tillåter max 50 subrequests per invocation, så
+// källorna delas upp i två grupper som var för sig håller sig under
+// taket: "gbg" (goteborg.se, paginerat ~30+ sidor) och "rest"
+// (övriga källor, inkl. Kungälvs bokstavssökning ~29 anrop).
+// Frontenden slår ihop svaren från /api/events?group=gbg|rest.
 // ============================================================
-async function fetchAllEvents() {
-  const results = await Promise.allSettled([
+function gbgFetchTasks() {
+  return [
     parseSourcePaged(SOURCES.gbg, parseGbg),
     parseSourcePaged(SOURCES.gbgUtst, parseGbg),
+  ];
+}
+function restFetchTasks() {
+  return [
     parseSource(SOURCES.mh, parseMH),
     parseSource(SOURCES.hop, parseHoP),
     parseSource(SOURCES.mollan, parseMollan),
     fetchKungalvEvents(),
     fetchPartilleEvents(),
     parseSource(SOURCES.kungsbacka, parseKungsbacka),
-  ]);
-  const NAMES = ["goteborg.se", "goteborg.se-utst", "musikenshus.se", "houseofpossibilitas.se", "kulturhusetmollan.se", "kungalv.se", "partille.se", "bibliotek.kungsbacka.se"];
+  ];
+}
+async function fetchAllEvents(group) {
+  const isGbg = group === "gbg";
+  const results = await Promise.allSettled(
+    isGbg ? gbgFetchTasks() : restFetchTasks()
+  );
+  const NAMES = isGbg
+    ? ["goteborg.se", "goteborg.se-utst"]
+    : ["musikenshus.se", "houseofpossibilitas.se", "kulturhusetmollan.se", "kungalv.se", "partille.se", "bibliotek.kungsbacka.se"];
   let items = [];
   const errors = [];
   const counts = {};
@@ -695,16 +712,19 @@ async function fetchAllEvents() {
 // Obs: Cache API (caches.default) provades men orsakar 500-error
 // vid upprepade anrop i Pages Functions och är därför borttaget.
 // ============================================================
-async function getEvents(force) {
-  if (!force && CACHE.items.length && Date.now() - CACHE.ts < CACHE_TTL_MS) {
-    return { ...CACHE, cached: true };
+const GROUP_CACHE = { gbg: { ts: 0, items: [] }, rest: { ts: 0, items: [] } };
+async function getEvents(force, group) {
+  const g = group === "gbg" ? "gbg" : "rest";
+  const c = GROUP_CACHE[g];
+  if (!force && c.items.length && Date.now() - c.ts < CACHE_TTL_MS) {
+    return { ...c, cached: true };
   }
-  const fresh = await fetchAllEvents();
+  const fresh = await fetchAllEvents(g);
   if (fresh.items.length > 0) {
-    CACHE = { ts: Date.now(), ...fresh };
+    GROUP_CACHE[g] = { ts: Date.now(), ...fresh };
     return { ...fresh, cached: false };
   }
-  if (CACHE.items.length) return { ...CACHE, cached: true, stale: true };
+  if (c.items.length) return { ...c, cached: true, stale: true };
   return fresh;
 }
 
@@ -723,7 +743,8 @@ export async function onRequestGet(context) {
 
   if (path === "/api/events") {
     const force = url.searchParams.get("refresh") === "1";
-    const data = await getEvents(force);
+    const group = url.searchParams.get("group");
+    const data = await getEvents(force, group);
     return new Response(JSON.stringify(data), {
       headers: { ...CORS, "cache-control": force ? "no-store" : "public, max-age=1800" },
     });

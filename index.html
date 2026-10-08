@@ -311,10 +311,30 @@ function renderSaved(data) {
 async function autoUpdate(silent, force) {
   if (!silent) { document.getElementById("refreshBtn").disabled = true; document.getElementById("refreshBtn").textContent = "Hämtar…"; }
   else setLoading("Hämtar evenemang… (kan ta någon minut första gången)");
+  const qs = (group) => "/api/events?group=" + group + (force ? "&refresh=1" : "") + "&_=" + Date.now();
   try {
-    const res = await fetch("/api/events" + (force ? "?refresh=1&_=" + Date.now() : "?_=" + Date.now()), { headers: { "Accept": "application/json" }, cache: "no-store" });
-    if (!res.ok) throw new Error("HTTP " + res.status);
-    const data = await res.json();
+    // Två grupper pga Cloudflares tak på 50 subrequests per anrop:
+    // gbg (goteborg.se, paginerat) och rest (övriga källor).
+    const [gbgRes, restRes] = await Promise.allSettled([
+      fetch(qs("gbg"), { headers: { "Accept": "application/json" }, cache: "no-store" }),
+      fetch(qs("rest"), { headers: { "Accept": "application/json" }, cache: "no-store" }),
+    ]);
+    const read = async (r, errLabel) => {
+      if (r.status !== "fulfilled" || !r.value.ok) {
+        const msg = r.status === "rejected" ? String(r.reason).slice(0, 100) : "HTTP " + r.value.status;
+        return { items: [], counts: {}, errors: [errLabel + ": " + msg] };
+      }
+      return r.value.json();
+    };
+    const gbgData = await read(gbgRes, "goteborg.se");
+    const restData = await read(restRes, "övriga källor");
+    const data = {
+      items: (gbgData.items || []).concat(restData.items || []),
+      counts: { ...(gbgData.counts || {}), ...(restData.counts || {}) },
+      errors: (gbgData.errors || []).concat(restData.errors || []),
+      fetchedAt: restData.fetchedAt || gbgData.fetchedAt || null,
+      cached: !!(gbgData.cached && restData.cached),
+    };
     window.__lastResponseCached = !!data.cached;
     window.__fetchedAtMs = data.fetchedAt ? new Date(data.fetchedAt).getTime() : 0;
     if (!data.items || !data.items.length) throw new Error("inga evenemang");
