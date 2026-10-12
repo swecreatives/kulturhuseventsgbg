@@ -29,6 +29,8 @@ const HEADERS = {
 
 const SOURCES = {
   gbg: "https://goteborg.se/wps/portal/start/uppleva-och-gora/kultur/kulturhus/program-pa-kulturhusen",
+  gbgApi: "https://microservices.goteborg.se/ua/kalendariet/public/activities",
+  gbgUnits: "18bfaf68-d577-40ff-a64e-b5186f49605d,d565a6f3-c775-4eb0-96f8-bb12862a0186,729469f4-9537-46f8-8c2c-ae79276991eb,fb5f2bfa-b3ce-464e-be58-a14a5abb183c,d79dd3ca-742e-4544-b919-c55d3a4884ef,893e9da4-2553-4abd-a6ad-d0ec9794f4e8,cbb149cc-58a1-4152-8356-8e9b19e46668",
   gbgUtst: "https://goteborg.se/wps/portal/start/uppleva-och-gora/kultur/kulturhus/utstallningar-pa-kulturhusen/aktuella-utstallningar",
   mh: "https://www.musikenshus.se/kalender/",
   hop: "https://houseofpossibilitas.se/evenemang/",
@@ -663,10 +665,56 @@ function parseKungsbacka(html) {
 // (övriga källor, inkl. Kungälvs bokstavssökning ~29 anrop).
 // Frontenden slår ihop svaren från /api/events?group=gbg|rest.
 // ============================================================
+// Hämta goteborg.se-evenemang via kalendarium-API:et (JSON) i stället för
+// HTML-skrapning. API:et ger exakt priceInformation, start/endTime och
+// unit-namn, och kräver bara ~1 subrequest per 100 evenemang (paginerat).
+// Frånvaro av priceInformation = gratis (samma logik som goteborg.se:s egen frontend).
+async function fetchGbgApi() {
+  const items = [];
+  const from = new Date();
+  const to = new Date(Date.now() + 400 * 24 * 60 * 60 * 1000);
+  const q = (p) => "units=" + encodeURIComponent(SOURCES.gbgUnits) +
+    "&fromDate=" + from.toISOString().slice(0, 10) +
+    "&toDate=" + to.toISOString().slice(0, 10) +
+    "&page=" + p + "&size=100";
+  for (let page = 0; page < 15; page++) {
+    const res = await fetch(SOURCES.gbgApi + "?" + q(page), { headers: { ...HEADERS, Accept: "application/json" } });
+    if (!res.ok) throw new Error("HTTP " + res.status);
+    const data = await res.json();
+    for (const a of data.content || []) {
+      const start = (a.startTime || "").slice(0, 10);
+      const end = (a.endTime || "").slice(0, 10);
+      const time = (a.startTime || "").slice(11, 16) && (a.endTime || "").slice(11, 16)
+        ? (a.startTime || "").slice(11, 16) + "–" + (a.endTime || "").slice(11, 16)
+        : "";
+      const it = {
+        title: a.title || "",
+        venue: (a.unit && a.unit.name) || "Göteborgs kulturhus",
+        source: "goteborg.se",
+        date: "", time,
+        start: start, end: end,
+        full: false, recurring: a.eventType === "multiple",
+        desc: (a.priceInformation || "") + "",
+        iso: start || null, isoEnd: end || null,
+        price: a.priceInformation || "",
+        link: "https://goteborg.se/wps/portal/start/uppleva-och-gora/kultur/kulturhus/program-pa-kulturhusen?activityId=" + a.id,
+      };
+      it.category = categorize(it);
+      items.push(it);
+    }
+    if (data.last || !(data.content || []).length) break;
+  }
+  return items;
+}
+
 function gbgFetchTasks() {
   return [
-    parseSourcePaged(SOURCES.gbg, parseGbg),
-    parseSourcePaged(SOURCES.gbgUtst, parseGbg),
+    fetchGbgApi().catch(() =>
+      Promise.all([
+        parseSourcePaged(SOURCES.gbg, parseGbg),
+        parseSourcePaged(SOURCES.gbgUtst, parseGbg),
+      ]).then(r => r.flat())
+    ),
   ];
 }
 function restFetchTasks() {
