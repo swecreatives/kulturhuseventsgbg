@@ -70,7 +70,6 @@
         <option value="kulturhusetmollan.se">Kulturhuset Möllan (Mölndal)</option>
         <option value="kungalv.se">Mimers Kulturhus (Kungälv)</option>
         <option value="partille.se">Partille Kulturum</option>
-        <option value="bibliotek.kungsbacka.se">Biblioteken i Kungsbacka</option>
       </select>
       <select id="categoryFilter">
         <option value="">Alla kategorier</option>
@@ -128,7 +127,6 @@ function findLink(title, source) {
   if (source === "kulturhusetmollan.se") return "https://kulturhusetmollan.se/?s=" + encodeURIComponent(title);
   if (source === "kungalv.se") return "https://www.kungalv.se/sok?q=" + encodeURIComponent(title);
   if (source === "partille.se") return "https://www.partille.se/uppleva--gora/evenemang/";
-  if (source === "bibliotek.kungsbacka.se") return "https://bibliotek.kungsbacka.se/evenemang";
   return "https://www.google.com/search?q=" + encodeURIComponent('"' + title + '" site:goteborg.se');
 }
 
@@ -152,7 +150,6 @@ const SOURCE_LABELS = {
   "kulturhusetmollan.se": "Kulturhuset Möllan (Mölndal)",
   "kungalv.se": "Mimers Kulturhus (Kungälv)",
   "partille.se": "Partille Kulturum",
-  "bibliotek.kungsbacka.se": "Biblioteken i Kungsbacka"
 };
 
 function escapeHtml(s) {
