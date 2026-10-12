@@ -99,7 +99,15 @@
       <select id="dayFilter">
         <option value="">Alla datum</option>
         <option value="today">Endast idag</option>
+        <option value="tomorrow">Imorgon</option>
+        <option value="weekend">I helgen</option>
         <option value="week">Endast denna vecka</option>
+        <option value="nextweek">Nästa vecka</option>
+      </select>
+      <select id="priceFilter">
+        <option value="">Alla priser</option>
+        <option value="free">Endast gratis</option>
+        <option value="cost">Endast med kostnad</option>
       </select>
       <button id="csvBtn" class="secondary" disabled>Exportera CSV</button>
       <button id="jsonBtn" class="secondary" disabled>Exportera JSON</button>
@@ -186,6 +194,26 @@ function audienceOf(x) {
   return "blandad";
 }
 
+// --- Datumfilter: idag/imorgon/helg/vecka/nästa vecka ---
+function inDateFilter(d, x, c) {
+  const inRange = (from, to) => (x.iso >= from && x.iso <= to) || (x.iso < from && x.isoEnd && x.isoEnd >= from);
+  if (d === "today") return x.iso === c.today || (x.iso < c.today && x.isoEnd && x.isoEnd >= c.today);
+  if (d === "tomorrow") return x.iso === c.tomorrow || (x.iso < c.tomorrow && x.isoEnd && x.isoEnd >= c.tomorrow);
+  if (d === "weekend") return inRange(c.ws, c.we);
+  if (d === "nextweek") return inRange(c.nws, c.nwe);
+  return x.iso >= c.weekStart && x.iso <= c.weekEnd;
+}
+
+// --- Pris: gratis vs kostnad ---
+const FREE_RE = /\b(gratis|fri entr|frikostnad|ingen avgift|kostnadsfritt|utan kostnad)/i;
+const COST_RE = /\b(biljtt|biljett|inträde|avgift|pris:?\s*\d|\d+\s*(kr|sek)|köp biljett|entréavgift|medlemsavgift|kursavgift|anmälningsavgift)/i;
+function priceOf(x) {
+  const t = ((x.title || "") + " " + (x.desc || "")).toLowerCase();
+  if (t.match(FREE_RE)) return "free";
+  if (t.match(COST_RE)) return "cost";
+  return "unknown";
+}
+
 function render() {
   const q = document.getElementById("q").value.toLowerCase().trim();
   const v = document.getElementById("venueFilter").value;
@@ -194,6 +222,7 @@ function render() {
   const s = document.getElementById("statusFilter").value;
   const aud = document.getElementById("audienceFilter").value;
   const d = document.getElementById("dayFilter").value;
+  const price = document.getElementById("priceFilter").value;
   const today = new Date().toISOString().slice(0, 10);
   const maxDate = new Date(Date.now() + dateWindowDays * 86400000).toISOString().slice(0, 10);
   const now = new Date();
@@ -204,16 +233,24 @@ function render() {
   sunday.setDate(sunday.getDate() + 6);
   const weekStart = monday.toISOString().slice(0, 10);
   const weekEnd = sunday.toISOString().slice(0, 10);
+  const tomorrow = new Date(Date.now() + 86400000).toISOString().slice(0, 10);
+  const weekendStart = new Date(monday); weekendStart.setDate(weekendStart.getDate() + 5);
+  const weekendEnd = new Date(monday); weekendEnd.setDate(weekendEnd.getDate() + 7);
+  const nextWeekStart = new Date(monday); nextWeekStart.setDate(nextWeekStart.getDate() + 7);
+  const nextWeekEnd = new Date(monday); nextWeekEnd.setDate(nextWeekEnd.getDate() + 13);
+  const wk = (d) => d.toISOString().slice(0, 10);
+  const ws = wk(weekendStart), we = wk(weekendEnd), nws = wk(nextWeekStart), nwe = wk(nextWeekEnd);
   view = DATA.filter(x =>
     (!x.isoEnd || x.isoEnd >= today) &&
     (!x.iso || x.iso <= maxDate) &&
-    (!d || !x.iso || (d === "today" ? (x.iso === today || (x.iso < today && x.isoEnd && x.isoEnd >= today)) : (x.iso >= weekStart && x.iso <= weekEnd))) &&
+    (!d || !x.iso || inDateFilter(d, x, { today, tomorrow, weekStart, weekEnd, weekendStart, weekendEnd, nextWeekStart, nextWeekEnd })) &&
     (!q || x.title.toLowerCase().includes(q) || x.venue.toLowerCase().includes(q) || (x.desc || "").toLowerCase().includes(q)) &&
     (!v || x.venue === v) &&
     (!c || x.category === c) &&
     (!src || x.source === src) &&
     (!aud || audienceOf(x) === aud) &&
-    (s === "" || (s === "full" ? x.full : !x.full))
+    (s === "" || (s === "full" ? x.full : !x.full)) &&
+    (!price || priceOf(x) === price)
   );
   view.sort((a, b) => {
     let r;
@@ -248,6 +285,7 @@ document.getElementById("categoryFilter").addEventListener("change", render);
 document.getElementById("sourceFilter").addEventListener("change", render);
 document.getElementById("dayFilter").addEventListener("change", render);
 document.getElementById("audienceFilter").addEventListener("change", render);
+document.getElementById("priceFilter").addEventListener("change", render);
 document.getElementById("tbl").addEventListener("click", e => {
   const th = e.target.closest("th[data-k]");
   if (!th) return;
