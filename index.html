@@ -190,7 +190,29 @@ function audienceOf(x) {
 }
 
 // --- Datumfilter: idag/imorgon/helg/vecka/nästa vecka ---
+const WEEKDAY_NAMES = ["söndag", "måndag", "tisdag", "onsdag", "torsdag", "fredag", "lördag"];
+// Återkommande evenemang utan kalenderdatum (t.ex. "Måndagar" från Möllan)
+// matchas på faktiska veckodagar inom filterperioden.
+function weekdayMatches(x, fromISO, toISO) {
+  const wd = (x.weekday || "").replace(/ar$/, "");
+  if (!WEEKDAY_NAMES.includes(wd)) return false;
+  const target = WEEKDAY_NAMES.indexOf(wd);
+  let t = new Date(fromISO + "T00:00:00");
+  const end = new Date(toISO + "T00:00:00");
+  while (t <= end) {
+    if (t.getDay() === target) return true;
+    t.setDate(t.getDate() + 1);
+  }
+  return false;
+}
 function inDateFilter(d, x, c) {
+  if (!x.iso && x.weekday) {
+    if (d === "today") return weekdayMatches(x, c.today, c.today);
+    if (d === "tomorrow") return weekdayMatches(x, c.tomorrow, c.tomorrow);
+    if (d === "weekend") return weekdayMatches(x, c.ws, c.we);
+    if (d === "nextweek") return weekdayMatches(x, c.nws, c.nwe);
+    return weekdayMatches(x, c.weekStart, c.weekEnd);
+  }
   const inRange = (from, to) => (x.iso >= from && x.iso <= to) || (x.iso < from && x.isoEnd && x.isoEnd >= from);
   if (d === "today") return x.iso === c.today || (x.iso < c.today && x.isoEnd && x.isoEnd >= c.today);
   if (d === "tomorrow") return x.iso === c.tomorrow || (x.iso < c.tomorrow && x.isoEnd && x.isoEnd >= c.tomorrow);

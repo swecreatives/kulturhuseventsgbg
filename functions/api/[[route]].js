@@ -456,6 +456,7 @@ function parseMollan(html) {
               date: curDay, time: tm[1].replace(".", ":") + "–" + tm[2].replace(".", ":"),
               start: "", end: "", full: false, recurring: true,
               desc: place ? "Plats: " + place : "", iso: null, isoEnd: null,
+              weekday: curDay.toLowerCase(),
             };
             it.category = categorize(it);
             it.link = findLink(anchors, it.title, it.source, "https://kulturhusetmollan.se");
