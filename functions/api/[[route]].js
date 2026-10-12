@@ -82,17 +82,26 @@ function htmlToMd(html) {
 
 function extractAnchors(html) {
   const map = new Map();
-  const re = /<a[^>]+href="([^"#]+)"[^>]*>([\s\S]*?)<\/a>/gi;
+  const add = (text, url) => {
+    const t = htmlToMd(String(text)).trim();
+    if (t.length > 2 && t.length < 120 && !map.has(t)) map.set(t, url);
+  };
+  const reA = /<a[^>]+href="([^"#]+)"[^>]*>([\s\S]*?)<\/a>/gi;
   let m;
-  while ((m = re.exec(html))) {
-    const text = htmlToMd(m[2]).trim();
-    if (text.length > 2 && text.length < 120 && !map.has(text)) map.set(text, m[1]);
-  }
+  while ((m = reA.exec(html))) add(m[2], m[1]);
+  const reMd = /\[([^\]]{3,120})\]\((https?:\/\/[^\s)]+)\)/g;
+  while ((m = reMd.exec(html))) add(m[1], m[2]);
   return map;
 }
 
-function safeLink(u) {
-  return /^https?:\/\//i.test(String(u || "")) ? u : null;
+function safeLink(u, baseUrl) {
+  const s = String(u || "").trim();
+  if (!s) return null;
+  if (/^https?:\/\//i.test(s)) return s;
+  if (baseUrl && s.startsWith("/")) {
+    try { return new URL(s, baseUrl).href; } catch (e) { return null; }
+  }
+  return null;
 }
 
 // ============================================================
@@ -175,15 +184,15 @@ function categorize(item) {
   return "ovrigt";
 }
 
-function findLink(anchorMap, title, source) {
+function findLink(anchorMap, title, source, baseUrl) {
   if (anchorMap && anchorMap.size) {
     const norm = (s) => s.toLowerCase().replace(/\s+/g, " ").trim();
     let best = null;
     for (const [k, v] of anchorMap) {
-      if (norm(k) === norm(title)) return safeLink(v);
+      if (norm(k) === norm(title)) return safeLink(v, baseUrl);
       if (norm(k).includes(norm(title)) || norm(title).includes(norm(k))) best = best || v;
     }
-    if (best) return safeLink(best);
+    if (best) return safeLink(best, baseUrl);
   }
   if (source === "musikenshus.se") return "https://www.musikenshus.se/?s=" + encodeURIComponent(title);
   if (source === "houseofpossibilitas.se") return "https://houseofpossibilitas.se/?s=" + encodeURIComponent(title);
@@ -266,7 +275,7 @@ function parseGbg(html) {
         it.iso = svDateToISO(it.date) || svDateToISO(it.start);
         it.isoEnd = svDateToISO(it.end) || it.iso;
         it.category = categorize(it);
-        it.link = findLink(anchors, it.title, "goteborg.se");
+        it.link = findLink(anchors, it.title, "goteborg.se", "https://goteborg.se");
         items.push(it);
       }
       i = j;
@@ -332,7 +341,7 @@ function parseMH(html) {
           };
           it.isoEnd = it.iso;
           it.category = categorize(it);
-          it.link = findLink(anchors, it.title, "musikenshus.se");
+          it.link = findLink(anchors, it.title, "musikenshus.se", "https://www.musikenshus.se");
           items.push(it);
           i = j; continue;
         }
@@ -396,7 +405,7 @@ function parseHoP(html) {
         };
         it.isoEnd = it.iso;
         it.category = categorize(it);
-        it.link = findLink(anchors, it.title, "houseofpossibilitas.se");
+        it.link = findLink(anchors, it.title, "houseofpossibilitas.se", "https://houseofpossibilitas.se");
         items.push(it);
         i = j; continue;
       }
@@ -447,7 +456,7 @@ function parseMollan(html) {
               desc: place ? "Plats: " + place : "", iso: null, isoEnd: null,
             };
             it.category = categorize(it);
-            it.link = findLink(anchors, it.title, it.source);
+            it.link = findLink(anchors, it.title, it.source, "https://kulturhusetmollan.se");
             items.push(it);
           }
         }
@@ -636,7 +645,7 @@ function parseKungsbacka(html) {
           desc: desc.join(" ").slice(0, 400), iso: null, isoEnd: null,
         };
         it.category = categorize(it);
-        it.link = findLink(anchors, it.title, it.source);
+        it.link = findLink(anchors, it.title, it.source, "https://bibliotek.kungsbacka.se");
         items.push(it);
         i = j; continue;
       }
