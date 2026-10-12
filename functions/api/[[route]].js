@@ -20,7 +20,7 @@
 const CACHE_TTL_MS = 60 * 60 * 1000; // 1 timme
 const FETCH_TIMEOUT_MS = 15000;
 const SLOW_SOURCE_TIMEOUT_MS = 5000;
-const SLOW_SOURCES = /kungsbacka\.se/;
+const SLOW_SOURCES = /never-matches\.invalid/;
 const HEADERS = {
   "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0 Safari/537.36",
   "Accept": "text/html,application/xhtml+xml",
@@ -39,7 +39,6 @@ const SOURCES = {
   kungalvSearch: "https://www.kungalv.se/Search/Result/",
   partille: "https://www.partille.se/evenemang/",
   partilleApi: "https://www.partille.se/_api/eventlistpage/events",
-  kungsbacka: "https://bibliotek.kungsbacka.se/evenemang",
 };
 
 // ---------- Modul-global cache (per isolate) ----------
@@ -201,7 +200,6 @@ function findLink(anchorMap, title, source, baseUrl) {
   if (source === "kulturhusetmollan.se") return "https://kulturhusetmollan.se/?s=" + encodeURIComponent(title);
   if (source === "kungalv.se") return "https://www.kungalv.se/sok?q=" + encodeURIComponent(title);
   if (source === "partille.se") return "https://www.partille.se/uppleva--gora/evenemang/";
-  if (source === "bibliotek.kungsbacka.se") return "https://bibliotek.kungsbacka.se/evenemang";
   return "https://www.google.com/search?q=" + encodeURIComponent('"' + title + '" site:goteborg.se');
 }
 
@@ -619,45 +617,6 @@ async function fetchPartilleEvents() {
 }
 
 // ============================================================
-// Tolkare: Biblioteken i Kungsbacka (rubrik + beskrivning)
-// ============================================================
-const KUNGSBACKA_VENUE = "Biblioteken i Kungsbacka";
-function parseKungsbacka(html) {
-  const anchors = extractAnchors(html);
-  const lines = htmlToMd(html).split(/\r?\n/).map((l) => l.trim().replace(/^\*+\s*|^[-–•]\s+/, ""));
-  const items = [];
-  const descStartRe = /^#{2,3}\s+(.+)$/;
-  let i = 0;
-  while (i < lines.length) {
-    const tm = lines[i] && lines[i].match(descStartRe);
-    if (tm && !/Evenemang|JavaScript|Logga in|kakor|Sök evenemang|Tidsintervall|Mer om/i.test(lines[i])) {
-      const title = tm[1].trim();
-      let j = i + 1;
-      const desc = [];
-      while (j < lines.length && !/^#{2,3}\s+/.test(lines[j] || "")) {
-        if (lines[j] && lines[j].length > 20) desc.push(lines[j]);
-        j++;
-        if (desc.join(" ").length > 300) break;
-      }
-      if (title.length > 3 && desc.length) {
-        const it = {
-          title, venue: KUNGSBACKA_VENUE, source: "bibliotek.kungsbacka.se",
-          date: "", time: "", start: "", end: "",
-          full: false, recurring: false,
-          desc: desc.join(" ").slice(0, 400), iso: null, isoEnd: null,
-        };
-        it.category = categorize(it);
-        it.link = findLink(anchors, it.title, it.source, "https://bibliotek.kungsbacka.se");
-        items.push(it);
-        i = j; continue;
-      }
-    }
-    i++;
-  }
-  return items;
-}
-
-// ============================================================
 // Hämtning + tolkning av alla källor.
 // Cloudflare Pages tillåter max 50 subrequests per invocation, så
 // källorna delas upp i två grupper som var för sig håller sig under
@@ -724,7 +683,6 @@ function restFetchTasks() {
     parseSource(SOURCES.mollan, parseMollan),
     fetchKungalvEvents(),
     fetchPartilleEvents(),
-    parseSource(SOURCES.kungsbacka, parseKungsbacka),
   ];
 }
 async function fetchAllEvents(group) {
@@ -734,7 +692,7 @@ async function fetchAllEvents(group) {
   );
   const NAMES = isGbg
     ? ["goteborg.se", "goteborg.se-utst"]
-    : ["musikenshus.se", "houseofpossibilitas.se", "kulturhusetmollan.se", "kungalv.se", "partille.se", "bibliotek.kungsbacka.se"];
+    : ["musikenshus.se", "houseofpossibilitas.se", "kulturhusetmollan.se", "kungalv.se", "partille.se"];
   let items = [];
   const errors = [];
   const counts = {};
@@ -814,7 +772,6 @@ export async function onRequestGet(context) {
       ["musikenshus.se", SOURCES.mh, parseMH],
       ["houseofpossibilitas.se", SOURCES.hop, parseHoP],
       ["kulturhusetmollan.se", SOURCES.mollan, parseMollan],
-      ["bibliotek.kungsbacka.se", SOURCES.kungsbacka, parseKungsbacka],
     ];
     const apiSources = [
       ["kungalv.se", fetchKungalvEvents],

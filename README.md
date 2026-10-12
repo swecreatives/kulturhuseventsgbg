@@ -23,7 +23,6 @@ functions/api/[[route]].js    – Cloudflare Pages Function (backend)
 - kulturhusetmollan.se
 - kungalv.se (Angular-renderad kalender – hämtas via sajtens sök-API `POST /Search/Result/`)
 - partille.se (Vue-renderad kalender – hämtas via sajtens JSON-API `/_api/eventlistpage/events`)
-- bibliotek.kungsbacka.se
 
 ## Deployment (Cloudflare Pages)
 
