@@ -85,6 +85,11 @@
         <option value="schack">Schack/Spel</option>
         <option value="ovrigt">Övrigt</option>
       </select>
+      <select id="audienceFilter">
+        <option value="">Alla målgrupper</option>
+        <option value="barn">Endast barn</option>
+        <option value="vuxen">Endast vuxen</option>
+      </select>
       <select id="statusFilter">
         <option value="">Alla statusar</option>
         <option value="full">Fullbokade</option>
@@ -167,12 +172,24 @@ function loadItems(items) {
   render();
 }
 
+// --- Målgrupp: barn vs vuxen ---
+const W = "(?<![\p{L}\p{N}_])", E = "(?![\p{L}\p{N}_])";
+const KID_RE = new RegExp(W + "(barn|familj(e|je)?|ung" + E + "|ungdom|kalas|pyssel|sagostund|saga" + E + "|lekvärld|barnbio|dockteater|lov" + E + "|lov(e|kväll|aktivitet|program))", "iu");
+const ADULT_RE = new RegExp(W + "(vuxen|kväll(s)?" + E + "|pub" + E + "|ölstuga|föreläsning|föredrag|debatt|språkcafé|café" + E + "|träffpunkt|senior|nätverk|kvinnor|män" + E + "|efterarbete|afterschool|student)", "iu");
+function audienceOf(x) {
+  const t = ((x.title || "") + " " + (x.desc || "") + " " + (x.category || "")).toLowerCase();
+  if (t.match(KID_RE) || x.category === "barnfamilj") return "barn";
+  if (t.match(ADULT_RE)) return "vuxen";
+  return "blandad";
+}
+
 function render() {
   const q = document.getElementById("q").value.toLowerCase().trim();
   const v = document.getElementById("venueFilter").value;
   const c = document.getElementById("categoryFilter").value;
   const src = document.getElementById("sourceFilter").value;
   const s = document.getElementById("statusFilter").value;
+  const aud = document.getElementById("audienceFilter").value;
   const d = document.getElementById("dayFilter").value;
   const today = new Date().toISOString().slice(0, 10);
   const maxDate = new Date(Date.now() + dateWindowDays * 86400000).toISOString().slice(0, 10);
@@ -192,6 +209,7 @@ function render() {
     (!v || x.venue === v) &&
     (!c || x.category === c) &&
     (!src || x.source === src) &&
+    (!aud || (aud === "barn" ? audienceOf(x) === "barn" : audienceOf(x) === "vuxen")) &&
     (s === "" || (s === "full" ? x.full : !x.full))
   );
   view.sort((a, b) => {
@@ -220,12 +238,13 @@ function render() {
   }).join("") || '<tr><td colspan="4" style="color:#94a3b8;text-align:center;padding:24px">Inga träffar</td></tr>';
 }
 
-["q","venueFilter","categoryFilter","sourceFilter","statusFilter"].forEach(id =>
+["q","venueFilter","categoryFilter","sourceFilter","statusFilter","audienceFilter"].forEach(id =>
   document.getElementById(id).addEventListener("input", render));
 document.getElementById("venueFilter").addEventListener("change", render);
 document.getElementById("categoryFilter").addEventListener("change", render);
 document.getElementById("sourceFilter").addEventListener("change", render);
 document.getElementById("dayFilter").addEventListener("change", render);
+document.getElementById("audienceFilter").addEventListener("change", render);
 document.getElementById("tbl").addEventListener("click", e => {
   const th = e.target.closest("th[data-k]");
   if (!th) return;
