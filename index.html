@@ -208,6 +208,10 @@ function inDateFilter(d, x, c) {
 const FREE_RE = /\b(gratis|fri entr|frikostnad|ingen avgift|kostnadsfritt|utan kostnad)/i;
 const COST_RE = /\b(biljtt|biljett|inträde|avgift|pris:?\s*\d|\d+\s*(kr|sek)|köp biljett|entréavgift|medlemsavgift|kursavgift|anmälningsavgift)/i;
 function priceOf(x) {
+  if (x.price !== undefined) {
+    if (!x.price) return "free";
+    return "cost";
+  }
   const t = ((x.title || "") + " " + (x.desc || "")).toLowerCase();
   if (t.match(FREE_RE)) return "free";
   if (t.match(COST_RE)) return "cost";
