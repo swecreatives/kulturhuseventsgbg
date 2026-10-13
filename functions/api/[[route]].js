@@ -53,6 +53,12 @@ function setEnv(env) {
 // ============================================================
 // Verktyg: HTML -> markdown-lik text, länkextraktion
 // ============================================================
+function isoToSvDate(iso) {
+  if (!iso || !/^\d{4}-\d{2}-\d{2}$/.test(iso)) return "";
+  const [y, m, d] = iso.split("-").map(Number);
+  return `${d} ${SV_MONTHS[m - 1]}`;
+}
+
 function htmlToMd(html) {
   return String(html)
     .replace(/<script[\s\S]*?<\/script>/gi, " ")
@@ -171,8 +177,8 @@ async function parseSourcePaged(url, parseFn) {
 const CATEGORY_RULES = [
   ["musik", /\b(musik|konsert|kö?r\b|sång|gitarr|piano|band|orkester|jazz|hip hop|opera|musikkafé|open mic|trumpet|trummor|fiol|violin|synt|rap|blues|dj\b|dubbing)/i],
   ["dans", /\b(dans|afro\/jazz|linedance|balett|zumba)/i],
-  ["utstallning", /\b(utställning|videoinstallation|visning|konst|ateljé)/i],
-  ["film", /\b(film|bio|dokumentär)/i],
+  ["film", /\b(film|bio|dokumentär|filmklubb)/i],
+  ["utstallning", /\b(utställning|videoinstallation|konst|ateljé)/i],
   ["forelasning", /\b(föreläsning|föredrag|samtal|debatt|berättar|poesi)/i],
   ["workshop", /\b(workshop|kurs|utbildning|skriv|måla|modellera|lera|virka|handarbete|läxa)/i],
   ["teater", /(teater|föreställning|\bscen\b|cirkus)/i],
@@ -651,7 +657,7 @@ async function fetchGbgApi() {
         title: a.title || "",
         venue: (a.unit && a.unit.name) || "Göteborgs kulturhus",
         source: "goteborg.se",
-        date: "", time,
+        date: isoToSvDate(start) || (end !== start ? (isoToSvDate(start) + " – " + isoToSvDate(end)) : ""), time,
         start: start, end: end,
         full: false, recurring: a.eventType === "multiple",
         desc: (a.priceInformation || "") + "",
