@@ -215,7 +215,7 @@ function inDateFilter(d, x, c) {
   if (d === "tomorrow") return x.iso === c.tomorrow || (x.iso < c.tomorrow && x.isoEnd && x.isoEnd >= c.tomorrow);
   if (d === "weekend") return inRange(c.ws, c.we);
   if (d === "nextweek") return inRange(c.nws, c.nwe);
-  return x.iso >= c.weekStart && x.iso <= c.weekEnd;
+  return inRange(c.weekStart, c.weekEnd);
 }
 
 // --- Pris: gratis vs kostnad ---
@@ -252,7 +252,7 @@ function render() {
   const weekEnd = sunday.toISOString().slice(0, 10);
   const tomorrow = new Date(Date.now() + 86400000).toISOString().slice(0, 10);
   const weekendStart = new Date(monday); weekendStart.setDate(weekendStart.getDate() + 5);
-  const weekendEnd = new Date(monday); weekendEnd.setDate(weekendEnd.getDate() + 7);
+  const weekendEnd = new Date(monday); weekendEnd.setDate(weekendEnd.getDate() + 6);
   const nextWeekStart = new Date(monday); nextWeekStart.setDate(nextWeekStart.getDate() + 7);
   const nextWeekEnd = new Date(monday); nextWeekEnd.setDate(nextWeekEnd.getDate() + 13);
   const wk = (d) => d.toISOString().slice(0, 10);
@@ -260,7 +260,7 @@ function render() {
   view = DATA.filter(x =>
     (!x.isoEnd || x.isoEnd >= today) &&
     (!x.iso || x.iso <= maxDate) &&
-    (!d || !x.iso || inDateFilter(d, x, { today, tomorrow, weekStart, weekEnd, weekendStart, weekendEnd, nextWeekStart, nextWeekEnd })) &&
+    (!d || inDateFilter(d, x, { today, tomorrow, weekStart, weekEnd, ws, we, nws, nwe })) &&
     (!q || x.title.toLowerCase().includes(q) || x.venue.toLowerCase().includes(q) || (x.desc || "").toLowerCase().includes(q)) &&
     (!v || x.venue === v) &&
     (!c || x.category === c) &&
