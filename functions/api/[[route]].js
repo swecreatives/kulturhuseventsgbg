@@ -175,7 +175,7 @@ async function parseSourcePaged(url, parseFn) {
 // Kategorisering
 // ============================================================
 const CATEGORY_RULES = [
-  ["musik", /\b(musik|konsert|kö?r\b|sång|gitarr|piano|band|orkester|jazz|hip hop|opera|musikkafé|open mic|trumpet|trummor|fiol|violin|synt|rap|blues|dj\b|dubbing)/i],
+  ["musik", /\b(musik|konsert|sång|gitarr|piano|band|orkester|jazz|hip hop|opera|musikkafé|open mic|trumpet|trummor|fiol|violin|synt|rap|blues|dj\b|dubbing)|kör\b/i],
   ["dans", /\b(dans|afro\/jazz|linedance|balett|zumba)/i],
   ["film", /\b(film|bio|dokumentär|filmklubb)/i],
   ["utstallning", /\b(utställning|videoinstallation|konst|ateljé)/i],
