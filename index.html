@@ -99,7 +99,7 @@
         <option value="nextweek">Nästa vecka</option>
       </select>
       <select id="priceFilter">
-        <option value="">Kostnad</option>
+        <option value="">Avgift</option>
         <option value="free">Endast gratis</option>
         <option value="cost">Endast med inträde</option>
       </select>
@@ -180,6 +180,8 @@ const ADULT_RE = new RegExp(W + "(vuxen|kväll(s)?" + E + "|pub" + E + "|ölstug
 const SENIOR_RE = new RegExp(W + "(senior(er|er?träning|er?dans|er?gympa|er?yoga|er?fika|städning|promenad|teater)?|pensionär|pensionärs?|äldre|pensionärsträff|äldrefrågor|minnen)", "iu");
 function audienceOf(x) {
   const t = ((x.title || "") + " " + (x.desc || "") + " " + (x.category || "")).toLowerCase();
+  const age = t.match(/(\d{1,2})\s*[-\u2013]\s*(\d{1,2})\s*(\u00e5r|ar)/);
+  if (age && +age[2] <= 19) return "barn";
   if (t.match(KID_RE) || x.category === "barnfamilj") return "barn";
   if (t.match(SENIOR_RE)) return "senior";
   if (t.match(ADULT_RE)) return "vuxen";
@@ -220,7 +222,7 @@ function inDateFilter(d, x, c) {
 
 // --- Pris: gratis vs kostnad ---
 const FREE_RE = /\b(gratis|fri entr|frikostnad|ingen avgift|kostnadsfritt|utan kostnad)/i;
-const COST_RE = /\b(biljtt|biljett|inträde|avgift|pris:?\s*\d|\d+\s*(kr|sek)|köp biljett|entréavgift|medlemsavgift|kursavgift|anmälningsavgift)/i;
+const COST_RE = /\b(biljett|inträde|avgift|pris:?\s*\d|\d+\s*(kr|sek)|köp biljett|entréavgift|medlemsavgift|kursavgift|anmälningsavgift)/i;
 function priceOf(x) {
   if (x.price !== undefined) {
     if (!x.price) return "free";
@@ -265,7 +267,7 @@ function render() {
     (!v || x.venue === v) &&
     (!c || x.category === c) &&
     (!src || x.source === src) &&
-    (!aud || audienceOf(x) === aud) &&
+    (!aud || audienceOf(x) === aud || (aud === "vuxen" && audienceOf(x) === "blandad")) &&
     (!price || priceOf(x) === price)
   );
   view.sort((a, b) => {
