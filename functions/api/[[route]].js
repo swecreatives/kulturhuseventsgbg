@@ -648,6 +648,10 @@ async function fetchGbgApi() {
     if (!res.ok) throw new Error("HTTP " + res.status);
     const data = await res.json();
     for (const a of data.content || []) {
+      const unitName = (a.unit && a.unit.name) || "";
+      // Endast kulturhusenheter; komplettera listan om fler externa
+      // enheter dyker upp i kalendariet-API:et.
+      if (/atom\s+studios?/i.test(unitName)) continue;
       const start = (a.startTime || "").slice(0, 10);
       const end = (a.endTime || "").slice(0, 10);
       const time = (a.startTime || "").slice(11, 16) && (a.endTime || "").slice(11, 16)
@@ -655,7 +659,7 @@ async function fetchGbgApi() {
         : "";
       const it = {
         title: a.title || "",
-        venue: (a.unit && a.unit.name) || "Göteborgs kulturhus",
+        venue: unitName || "Göteborgs kulturhus",
         source: "goteborg.se",
         date: isoToSvDate(start) || (end !== start ? (isoToSvDate(start) + " – " + isoToSvDate(end)) : ""), time,
         start: start, end: end,
