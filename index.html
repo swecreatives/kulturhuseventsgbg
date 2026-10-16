@@ -103,7 +103,6 @@
         <option value="free">Endast gratis</option>
         <option value="cost">Endast med inträde</option>
       </select>
-      <button id="copyBtn" class="secondary" disabled>Kopiera JSON</button>
     </div>
     <div id="stats" class="stats"></div>
     <div class="tblwrap">
@@ -167,7 +166,6 @@ function loadItems(items) {
   const cur = vf.value;
   vf.innerHTML = '<option value="">Alla kulturhus</option>' + venues.map(v => `<option>${escapeHtml(v)}</option>`).join("");
   vf.value = venues.includes(cur) ? cur : "";
-  ["copyBtn"].forEach(id => document.getElementById(id).disabled = items.length === 0);
   render();
 }
 
@@ -310,24 +308,6 @@ document.getElementById("tbl").addEventListener("click", e => {
   sortAsc = (sortKey === k) ? !sortAsc : true;
   sortKey = k; render();
 });
-
-function download(name, content, type) {
-  const a = document.createElement("a");
-  a.href = URL.createObjectURL(new Blob([content], { type }));
-  a.download = name; a.click(); URL.revokeObjectURL(a.href);
-}
-function exportRows() {
-  return view.map(x => ({
-    titel: x.title, kulturhus: x.venue, kalla: x.source || "goteborg.se", datum: x.date || "",
-    startdatum: x.start || "", slutdatum: x.end || "", tid: x.time || "",
-    fullbokad: !!x.full, aterkommande: !!x.recurring, iso_datum: x.iso || "", kategori: x.category || "",
-    lank: x.link || "", beskrivning: x.desc || ""
-  }));
-}
-document.getElementById("copyBtn").onclick = async e => {
-  await navigator.clipboard.writeText(JSON.stringify(exportRows(), null, 2));
-  const b = e.target; b.textContent = "Kopierat!"; setTimeout(() => b.textContent = "Kopiera JSON", 1500);
-};
 
 // Uppdatera-knapp: tvinga fram färsk hämtning
 document.getElementById("refreshBtn").onclick = () => autoUpdate(false, true);
