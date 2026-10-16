@@ -170,7 +170,7 @@ function loadItems(items) {
 }
 
 // --- Målgrupp: barn vs vuxen ---
-const W = "(?<![\p{L}\p{N}_])", E = "(?![\p{L}\p{N}_])";
+const W = "(?<![\\p{L}\\p{N}_])", E = "(?![\\p{L}\\p{N}_])";
 const KID_RE = new RegExp(W + "(barn|familj(e|je)?|ung" + E + "|ungdom|kalas|pyssel|sagostund|saga" + E + "|lekvärld|barnbio|dockteater|lov" + E + "|lov(e|kväll|aktivitet|program))", "iu");
 const ADULT_RE = new RegExp(W + "(vux(e[na]?|na)|kväll(s)?" + E + "|pub" + E + "|ölstuga|föreläsning|föredrag|debatt|språkcafé|café" + E + "|träffpunkt|nätverk|kvinnor|män" + E + "|efterarbete|afterschool|student)", "iu");
 const SENIOR_RE = new RegExp(W + "(senior(er|er?träning|er?dans|er?gympa|er?yoga|er?fika|städning|promenad|teater)?|pensionär|pensionärsträff|äldrefrågor)", "iu");
