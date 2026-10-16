@@ -103,8 +103,6 @@
         <option value="free">Endast gratis</option>
         <option value="cost">Endast med inträde</option>
       </select>
-      <button id="csvBtn" class="secondary" disabled>Exportera CSV</button>
-      <button id="jsonBtn" class="secondary" disabled>Exportera JSON</button>
       <button id="copyBtn" class="secondary" disabled>Kopiera JSON</button>
     </div>
     <div id="stats" class="stats"></div>
@@ -169,20 +167,21 @@ function loadItems(items) {
   const cur = vf.value;
   vf.innerHTML = '<option value="">Alla kulturhus</option>' + venues.map(v => `<option>${escapeHtml(v)}</option>`).join("");
   vf.value = venues.includes(cur) ? cur : "";
-  ["csvBtn","jsonBtn","copyBtn"].forEach(id => document.getElementById(id).disabled = items.length === 0);
+  ["copyBtn"].forEach(id => document.getElementById(id).disabled = items.length === 0);
   render();
 }
 
 // --- Målgrupp: barn vs vuxen ---
 const W = "(?<![\p{L}\p{N}_])", E = "(?![\p{L}\p{N}_])";
 const KID_RE = new RegExp(W + "(barn|familj(e|je)?|ung" + E + "|ungdom|kalas|pyssel|sagostund|saga" + E + "|lekvärld|barnbio|dockteater|lov" + E + "|lov(e|kväll|aktivitet|program))", "iu");
-const ADULT_RE = new RegExp(W + "(vuxen|kväll(s)?" + E + "|pub" + E + "|ölstuga|föreläsning|föredrag|debatt|språkcafé|café" + E + "|träffpunkt|nätverk|kvinnor|män" + E + "|efterarbete|afterschool|student)", "iu");
-const SENIOR_RE = new RegExp(W + "(senior(er|er?träning|er?dans|er?gympa|er?yoga|er?fika|städning|promenad|teater)?|pensionär|pensionärs?|äldre|pensionärsträff|äldrefrågor|minnen)", "iu");
+const ADULT_RE = new RegExp(W + "(vux(e[na]?|na)|kväll(s)?" + E + "|pub" + E + "|ölstuga|föreläsning|föredrag|debatt|språkcafé|café" + E + "|träffpunkt|nätverk|kvinnor|män" + E + "|efterarbete|afterschool|student)", "iu");
+const SENIOR_RE = new RegExp(W + "(senior(er|er?träning|er?dans|er?gympa|er?yoga|er?fika|städning|promenad|teater)?|pensionär|pensionärsträff|äldrefrågor)", "iu");
 function audienceOf(x) {
   const t = ((x.title || "") + " " + (x.desc || "") + " " + (x.category || "")).toLowerCase();
   const age = t.match(/(\d{1,2})\s*[-\u2013]\s*(\d{1,2})\s*(\u00e5r|ar)/);
   if (age && +age[2] <= 19) return "barn";
   if (t.match(KID_RE) || x.category === "barnfamilj") return "barn";
+  if (t.match(ADULT_RE) && !t.match(SENIOR_RE)) return "vuxen";
   if (t.match(SENIOR_RE)) return "senior";
   if (t.match(ADULT_RE)) return "vuxen";
   return "blandad";
@@ -325,16 +324,6 @@ function exportRows() {
     lank: x.link || "", beskrivning: x.desc || ""
   }));
 }
-document.getElementById("csvBtn").onclick = () => {
-  const rows = exportRows();
-  if (!rows.length) return;
-  const cols = Object.keys(rows[0]);
-  const csv = [cols.join(",")].concat(rows.map(r =>
-    cols.map(c => `"${String(r[c]).replace(/"/g, '""')}"`).join(","))).join("\n");
-  download("kulturhusprogram.csv", "\uFEFF" + csv, "text/csv;charset=utf-8");
-};
-document.getElementById("jsonBtn").onclick = () =>
-  download("kulturhusprogram.json", JSON.stringify(exportRows(), null, 2), "application/json");
 document.getElementById("copyBtn").onclick = async e => {
   await navigator.clipboard.writeText(JSON.stringify(exportRows(), null, 2));
   const b = e.target; b.textContent = "Kopierat!"; setTimeout(() => b.textContent = "Kopiera JSON", 1500);
@@ -359,7 +348,7 @@ function setLoading(msg) {
 
 // Lokal persistens: spara senaste lyckade svaret i localStorage så att
 // sidan kan rendera direkt vid nästa besök utan att vänta på API:et.
-const LS_KEY = "khv_events_v1";
+const LS_KEY = "khv_events_v2";
 function saveLocal(data) {
   try { localStorage.setItem(LS_KEY, JSON.stringify(data)); } catch (e) {}
 }
