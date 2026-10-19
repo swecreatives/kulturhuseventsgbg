@@ -664,7 +664,7 @@ async function fetchGbgApi() {
         date: isoToSvDate(start) || (end !== start ? (isoToSvDate(start) + " – " + isoToSvDate(end)) : ""), time,
         start: start, end: end,
         full: false, recurring: a.eventType === "multiple",
-        desc: (a.priceInformation || "") + "",
+        desc: ((a.description || "").replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim() + (a.priceInformation ? " " + a.priceInformation : "")).slice(0, 400),
         iso: start || null, isoEnd: end || null,
         price: a.priceInformation || "",
         link: "https://goteborg.se/wps/portal/start/uppleva-och-gora/kultur/kulturhus/program-pa-kulturhusen?activityId=" + a.id,
