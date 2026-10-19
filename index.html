@@ -94,6 +94,11 @@
         <option value="free">Endast gratis</option>
         <option value="cost">Endast med inträde</option>
       </select>
+      <select id="recurringFilter">
+        <option value="recurring">Visa återkommande</option>
+        <option value="all">Visa alla</option>
+        <option value="single">Visa inte återkommande</option>
+      </select>
     </div>
     <div id="stats" class="stats"></div>
     <div class="tblwrap">
@@ -228,6 +233,7 @@ function render() {
   const v = document.getElementById("venueFilter").value;
   const c = document.getElementById("categoryFilter").value;
   const aud = document.getElementById("audienceFilter").value;
+  const rec = document.getElementById("recurringFilter").value;
   const d = document.getElementById("dayFilter").value;
   const price = document.getElementById("priceFilter").value;
   const today = new Date().toISOString().slice(0, 10);
@@ -255,6 +261,8 @@ function render() {
     (!v || x.venue === v) &&
     (!c || x.category === c) &&
     (!aud || audienceOf(x) === aud || (aud === "vuxen" && audienceOf(x) === "blandad")) &&
+    (rec !== "single" || !x.recurring) &&
+    (rec !== "recurring" || x.recurring) &&
     (!price || priceOf(x) === price)
   );
   view.sort((a, b) => {
@@ -283,12 +291,13 @@ function render() {
   }).join("") || '<tr><td colspan="4" style="color:#94a3b8;text-align:center;padding:24px">Inga träffar</td></tr>';
 }
 
-["q","venueFilter","categoryFilter","audienceFilter"].forEach(id =>
+["q","venueFilter","categoryFilter","audienceFilter","recurringFilter"].forEach(id =>
   document.getElementById(id).addEventListener("input", render));
 document.getElementById("venueFilter").addEventListener("change", render);
 document.getElementById("categoryFilter").addEventListener("change", render);
 document.getElementById("dayFilter").addEventListener("change", render);
 document.getElementById("audienceFilter").addEventListener("change", render);
+document.getElementById("recurringFilter").addEventListener("change", render);
 document.getElementById("priceFilter").addEventListener("change", render);
 document.getElementById("tbl").addEventListener("click", e => {
   const th = e.target.closest("th[data-k]");
