@@ -180,14 +180,15 @@ const CATEGORY_RULES = [
   ["film", /\b(film|bio|dokumentär|filmklubb)/i],
   ["utstallning", /\b(utställning|videoinstallation|konst|ateljé)/i],
   ["forelasning", /\b(föreläsning|föredrag|samtal|debatt|berättar|poesi)/i],
-  ["workshop", /\b(workshop|kurs|utbildning|skriv|måla|modellera|lera|virka|handarbete|läxa)/i],
+  ["workshop", /\b(workshop|kurs|utbildning|skriv|måla|modellera|lera|virka|handarbete|läxa)|stickcaf|högläsning/i],
   ["teater", /(teater|föreställning|\bscen\b|cirkus)/i],
   ["barnfamilj", /\b(barn|familj|ung\b|lov\b|familje)/i],
   ["schack", /\b(schack|rollspel|brädspel|spelkväll)/i],
 ];
 function categorize(item) {
   const t = (item.title + " " + (item.desc || "")).toLowerCase();
-  for (const [id, re] of CATEGORY_RULES) if (re.test(item.title) || re.test(t)) return id;
+  for (const [id, re] of CATEGORY_RULES) if (re.test(item.title)) return id;
+  for (const [id, re] of CATEGORY_RULES) if (re.test(t)) return id;
   return "ovrigt";
 }
 
