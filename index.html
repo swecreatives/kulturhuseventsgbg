@@ -62,15 +62,6 @@
     <div class="row" style="margin: 0 0 10px;">
       <input type="text" id="q" placeholder="Sök titel..." style="flex:1; min-width:180px" />
       <select id="venueFilter"><option value="">Alla kulturhus</option></select>
-      <select id="sourceFilter">
-        <option value="">Alla källor</option>
-        <option value="goteborg.se">goteborg.se (kulturhusen)</option>
-        <option value="houseofpossibilitas.se">House of Possibilitas</option>
-        <option value="musikenshus.se">Musikens Hus</option>
-        <option value="kulturhusetmollan.se">Kulturhuset Möllan (Mölndal)</option>
-        <option value="kungalv.se">Mimers Kulturhus (Kungälv)</option>
-        <option value="partille.se">Partille Kulturum</option>
-      </select>
       <select id="categoryFilter">
         <option value="">Alla kategorier</option>
         <option value="musik">Musik</option>
@@ -177,6 +168,7 @@ const SENIOR_RE = new RegExp(W + "(senior(er|er?träning|er?dans|er?gympa|er?yog
 function audienceOf(x) {
   const t = ((x.title || "") + " " + (x.desc || "") + " " + (x.category || "")).toLowerCase();
   const age = t.match(/(\d{1,2})\s*[-\u2013]\s*(\d{1,2})\s*(\u00e5r|ar)/);
+  if (/vux(na|en)\b/i.test(x.title || "") ) return "vuxen";
   if (age && +age[2] <= 19) return "barn";
   if (t.match(KID_RE) || x.category === "barnfamilj") return "barn";
   if (t.match(ADULT_RE) && !t.match(SENIOR_RE)) return "vuxen";
@@ -235,7 +227,6 @@ function render() {
   const q = document.getElementById("q").value.toLowerCase().trim();
   const v = document.getElementById("venueFilter").value;
   const c = document.getElementById("categoryFilter").value;
-  const src = document.getElementById("sourceFilter").value;
   const aud = document.getElementById("audienceFilter").value;
   const d = document.getElementById("dayFilter").value;
   const price = document.getElementById("priceFilter").value;
@@ -263,7 +254,6 @@ function render() {
     (!q || x.title.toLowerCase().includes(q) || x.venue.toLowerCase().includes(q) || (x.desc || "").toLowerCase().includes(q)) &&
     (!v || x.venue === v) &&
     (!c || x.category === c) &&
-    (!src || x.source === src) &&
     (!aud || audienceOf(x) === aud || (aud === "vuxen" && audienceOf(x) === "blandad")) &&
     (!price || priceOf(x) === price)
   );
@@ -293,11 +283,10 @@ function render() {
   }).join("") || '<tr><td colspan="4" style="color:#94a3b8;text-align:center;padding:24px">Inga träffar</td></tr>';
 }
 
-["q","venueFilter","categoryFilter","sourceFilter","audienceFilter"].forEach(id =>
+["q","venueFilter","categoryFilter","audienceFilter"].forEach(id =>
   document.getElementById(id).addEventListener("input", render));
 document.getElementById("venueFilter").addEventListener("change", render);
 document.getElementById("categoryFilter").addEventListener("change", render);
-document.getElementById("sourceFilter").addEventListener("change", render);
 document.getElementById("dayFilter").addEventListener("change", render);
 document.getElementById("audienceFilter").addEventListener("change", render);
 document.getElementById("priceFilter").addEventListener("change", render);
