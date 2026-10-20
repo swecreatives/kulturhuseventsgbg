@@ -60,6 +60,11 @@
   <div class="card">
     <h2>Filtrera &amp; exportera</h2>
     <div class="row" style="margin: 0 0 10px;">
+      <select id="recurringFilter">
+        <option value="all">Visa alla</option>
+        <option value="recurring">Visa endast återkommande</option>
+        <option value="single">Visa inga återkommande</option>
+      </select>
       <input type="text" id="q" placeholder="Sök titel..." style="flex:1; min-width:180px" />
       <select id="venueFilter"><option value="">Alla kulturhus</option></select>
       <select id="categoryFilter">
@@ -93,11 +98,6 @@
         <option value="">Avgift</option>
         <option value="free">Endast gratis</option>
         <option value="cost">Endast med inträde</option>
-      </select>
-      <select id="recurringFilter">
-        <option value="recurring">Visa återkommande</option>
-        <option value="all">Visa alla</option>
-        <option value="single">Visa inte återkommande</option>
       </select>
     </div>
     <div id="stats" class="stats"></div>
