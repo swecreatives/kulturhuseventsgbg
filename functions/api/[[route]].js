@@ -358,12 +358,13 @@ function parseMH(html) {
           if (j < lines.length && /^(Fri entré|Boka biljett|\d+\s*kr)/i.test(lines[j])) { if (!price) price = lines[j]; j++; }
           const descAll = desc.join(" ");
           let timeStr = "";
-          const kt = descAll.match(/(?:kl\.?\s*|klockan\s*|[Oo]ppet:\s*|Från\s+|Start\s+)(\d{1,2}[:.]\d{2})(?:\s*(?:[-–—]|till)\s*(\d{1,2}[:.]\d{2}))?/);
+          const kt = descAll.match(/(?:kl\.?\s*|klockan\s*|[Oo]ppet:?\s*|[Ee]vent times?\s*|[Ff]rån\s+|Start\s+|[Dd]örrar\s*)(\d{1,2}[:.]\d{2})(?:\s*(?:[-–—]|till)\s*(\d{1,2}[:.]\d{2}))?/) ||
+                     descAll.match(/(\d{1,2}[:.]\d{2})(?:\s*(?:[-–—]|till)\s*(\d{1,2}[:.]\d{2}))(?=\s|$)/);
           if (kt) timeStr = kt[2] ? kt[1].replace(".", ":") + "–" + kt[2].replace(".", ":") : kt[1].replace(".", ":");
           let year = cur.getFullYear();
           if (month < cur.getMonth()) year++;
           const it = {
-            title, venue: "Musikens Hus" + (scen ? ` (${scen})` : ""), source: "musikenshus.se",
+            title, venue: "Musikens Hus", source: "musikenshus.se",
             date: `${day} ${MH_MONTH_SV[month]}`, time: timeStr, start: "", end: "",
             full: false, recurring: false,
             desc: desc.join(" ").slice(0, 400),
