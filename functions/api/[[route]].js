@@ -1,3 +1,27 @@
+// Städa text: ta bort HTML-taggar, avkoda entiteter och normalisera mellanrum.
+function cleanText(raw, maxLen) {
+  let t = String(raw || "")
+    .replace(/<[^>]+>/g, " ")
+    .replace(/&nbsp;/gi, " ")
+    .replace(/&amp;/gi, "&")
+    .replace(/&lt;/gi, "<")
+    .replace(/&gt;/gi, ">")
+    .replace(/&quot;|&#34;/gi, '"')
+    .replace(/&#39;|&apos;/gi, "'")
+    .replace(/&aring;|&#229;/gi, "å")
+    .replace(/&Aring;|&#197;/gi, "Å")
+    .replace(/&auml;|&#228;/gi, "ä")
+    .replace(/&Auml;|&#196;/gi, "Ä")
+    .replace(/&ouml;|&#246;/gi, "ö")
+    .replace(/&Ouml;|&#214;/gi, "Ö")
+    .replace(/&eacute;|&#233;/gi, "é")
+    .replace(/&#(\d+);/g, (_, n) => String.fromCharCode(+n))
+    .replace(/&#x([0-9a-f]+);/gi, (_, n) => String.fromCharCode(parseInt(n, 16)))
+    .replace(/\s+/g, " ")
+    .trim();
+  return maxLen ? t.slice(0, maxLen) : t;
+}
+
 // ============================================================
 // Kulturhusprogram – Cloudflare PAGES FUNCTION
 // Ligger i samma projekt som index.html och exponeras på samma
@@ -665,7 +689,7 @@ async function fetchGbgApi() {
         date: isoToSvDate(start) || (end !== start ? (isoToSvDate(start) + " – " + isoToSvDate(end)) : ""), time,
         start: start, end: end,
         full: false, recurring: a.eventType === "multiple",
-        desc: ((a.description || "").replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim() + (a.priceInformation ? " " + a.priceInformation : "")).slice(0, 400),
+        desc: cleanText((a.description || "") + (a.priceInformation ? " " + a.priceInformation : ""), 400),
         iso: start || null, isoEnd: end || null,
         price: a.priceInformation || "",
         link: "https://goteborg.se/wps/portal/start/uppleva-och-gora/kultur/kulturhus/program-pa-kulturhusen?activityId=" + a.id,
@@ -730,6 +754,23 @@ async function fetchAllEvents(group) {
     if (r.status === "fulfilled" && r.value.length) items = items.concat(r.value);
     else errors.push(NAMES[idx] + ": " + (r.status === "rejected" ? String(r.reason).slice(0, 100) : "inga evenemang hittades"));
   });
+  // Rensa: ta bort helt avslutade evenemang (slutdatum passerat)
+  const today = new Date().toISOString().slice(0, 10);
+  items = items.filter((x) => !x.isoEnd || x.isoEnd >= today);
+
+  // Slå ihop återkommande instanser av samma evenemang (titel+kulturhus)
+  // till en rad: behåll tidigaste framtida tillfället, markera återkommande.
+  const byKey = new Map();
+  const singles = [];
+  for (const it of items) {
+    if (!it.recurring || !it.iso) { singles.push(it); continue; }
+    const key = (it.title + "|" + it.venue + "|" + it.source).toLowerCase();
+    const prev = byKey.get(key);
+    if (!prev) byKey.set(key, it);
+    else if ((it.iso || "9999") < (prev.iso || "9999") || (it.iso && it.iso >= today && (!prev.iso || prev.iso < today))) byKey.set(key, it);
+  }
+  items = singles.concat([...byKey.values()]);
+
   items.sort((a, b) => (a.iso || "9999") < (b.iso || "9999") ? -1 : (a.iso || "9999") > (b.iso || "9999") ? 1 : 0);
   return { items, errors, counts, fetchedAt: new Date().toISOString() };
 }
