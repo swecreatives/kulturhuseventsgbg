@@ -41,6 +41,23 @@
   .srcname { font-weight: 600; min-width: 220px; }
   .srcstat.ok { color: #166534; }
   .srcstat.err { color: #b91c1c; }
+  #filterToggle { display: none; }
+  @media (max-width: 680px) {
+    body { padding: 10px; }
+    h1 { font-size: 1.15rem; }
+    .card { padding: 12px; }
+    #filterToggle { display: inline-block; margin-bottom: 8px; }
+    #filterRow { flex-direction: column; align-items: stretch; }
+    #filterRow > input, #filterRow > select { width: 100%; }
+    .tblwrap { max-height: none; }
+    table, thead, tbody, tr, td { display: block; }
+    thead { display: none; }
+    tr { border: 1px solid #e2e8f0; border-radius: 8px; margin-bottom: 8px; padding: 8px; background: #fff; }
+    td { border: 0; padding: 2px 0; }
+    td.title a { font-size: .95rem; }
+    td:nth-child(n+2)::before { content: attr(data-label) ": "; color: #64748b; font-size: .75rem; }
+    .venue { white-space: normal; }
+  }
 </style>
 </head>
 <body>
@@ -59,7 +76,8 @@
 
   <div class="card">
     <h2>Filtrera &amp; exportera</h2>
-    <div class="row" style="margin: 0 0 10px;">
+    <button id="filterToggle" class="secondary">Filtrera ▾</button>
+    <div class="row" id="filterRow" style="margin: 0 0 10px;">
       <input type="text" id="q" placeholder="Sök titel..." style="flex:1; min-width:180px" />
       <select id="venueFilter"><option value="">Alla kulturhus</option></select>
       <select id="categoryFilter">
@@ -164,6 +182,18 @@ function loadItems(items) {
   vf.value = venues.includes(cur) ? cur : "";
   render();
 }
+
+// Visa/dolj filter pa mobil
+(function () {
+  const btn = document.getElementById("filterToggle");
+  const row = document.getElementById("filterRow");
+  if (!btn || !row) return;
+  const mq = window.matchMedia("(max-width: 680px)");
+  const apply = () => { row.style.display = (!mq.matches || row.dataset.open === "1") ? "flex" : "none"; };
+  btn.onclick = () => { row.dataset.open = row.dataset.open === "1" ? "0" : "1"; apply(); btn.textContent = row.dataset.open === "1" ? "Filtrera \u25b4" : "Filtrera \u25be"; };
+  mq.addEventListener ? mq.addEventListener("change", apply) : mq.addListener(apply);
+  apply();
+})();
 
 // --- Målgrupp: barn vs vuxen ---
 const W = "(?<![\p{L}\p{N}_])", E = "(?![\p{L}\p{N}_])";
@@ -287,7 +317,7 @@ function render() {
     const link = (x.link && /^https?:\/\//i.test(x.link)) ? x.link : findLink(x.title, x.source || "goteborg.se");
     const titleHtml = `<a class="ext" href="${escapeHtml(link)}" target="_blank" rel="noopener">${escapeHtml(x.title)}</a>`;
     return `<tr><td class="title">${titleHtml}${badges}</td>
-      <td class="venue">${escapeHtml(x.venue)}</td><td>${escapeHtml(date)}</td><td>${escapeHtml(x.time || "")}</td></tr>`;
+      <td class="venue" data-label="Kulturhus">${escapeHtml(x.venue)}</td><td data-label="Datum">${escapeHtml(date)}</td><td data-label="Tid">${escapeHtml(x.time || "")}</td></tr>`;
   }).join("") || '<tr><td colspan="4" style="color:#94a3b8;text-align:center;padding:24px">Inga träffar</td></tr>';
 }
 
