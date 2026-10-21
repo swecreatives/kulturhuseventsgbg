@@ -356,7 +356,10 @@ function setLoading(msg) {
 
 // Lokal persistens: spara senaste lyckade svaret i localStorage så att
 // sidan kan rendera direkt vid nästa besök utan att vänta på API:et.
-const LS_KEY = "khv_events_v2";
+const LS_KEY = "khv_events_v3";
+// Ogiltigforklara gamla cachenycklar vid nya dataformat/backend-andringar
+const LS_OLD_KEYS = ["khv_events_v1", "khv_events_v2"];
+try { LS_OLD_KEYS.forEach((k) => localStorage.removeItem(k)); } catch (e) {}
 function saveLocal(data) {
   try { localStorage.setItem(LS_KEY, JSON.stringify(data)); } catch (e) {}
 }
